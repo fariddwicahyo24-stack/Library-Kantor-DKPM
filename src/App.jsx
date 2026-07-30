@@ -186,6 +186,7 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [activities, setActivities] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
+  const [catalogLoans, setCatalogLoans] = useState([]);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear().toString());
 
   useEffect(() => {
@@ -228,8 +229,12 @@ export default function App() {
       const catData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setCatalogItems(catData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
     });
+    const unsubCatalogLoans = onSnapshot(query(getCol('catalogLoans')), (snapshot) => {
+      const loanData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCatalogLoans(loanData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
+    });
 
-    return () => { unsubProyek(); unsubTasks(); unsubActivities(); unsubKatalog(); };
+    return () => { unsubProyek(); unsubTasks(); unsubActivities(); unsubKatalog(); unsubCatalogLoans(); };
   }, [user]);
 
   // Auto Refresh system (setiap 30 menit) & Manual Sync
@@ -339,8 +344,8 @@ export default function App() {
           {activeTab === 'tugas' && <TugasView databaseProyek={databaseProyek} user={user} tasks={tasks} handleAddActivity={handleAddActivity} currentYear={currentYear} />}
           {activeTab === 'survei' && <SurveiView title="Survei & Setup Proyek" databaseProyek={databaseProyek} handleAddActivity={handleAddActivity} />}
           {activeTab === 'progres' && <ProgresPPTView title="Laporan Progres" databaseProyek={databaseProyek} handleAddActivity={handleAddActivity} />}
-          {activeTab === 'katalog' && <KatalogView user={user} catalogItems={catalogItems} handleAddActivity={handleAddActivity} />}
-          {activeTab === 'kinerja' && <KinerjaView tasks={tasks} currentYear={currentYear} handleAddActivity={handleAddActivity} />}
+          {activeTab === 'katalog' && <KatalogView user={user} catalogItems={catalogItems} catalogLoans={catalogLoans} handleAddActivity={handleAddActivity} />}
+          {activeTab === 'kinerja' && <KinerjaView tasks={tasks} catalogLoans={catalogLoans} currentYear={currentYear} handleAddActivity={handleAddActivity} />}
         </main>
 
         <nav className="md:hidden shrink-0 w-full bg-white border-t border-slate-200 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] z-30 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1">
@@ -806,7 +811,7 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
 }
 
 /* ================= KOMPONEN KINERJA VIEW (MEMASUKKAN SEMUA TUGAS, TERMASUK YG DIHAPUS) ================= */
-function KinerjaView({ tasks, currentYear, handleAddActivity }) {
+function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [isExporting, setIsExporting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -816,16 +821,27 @@ function KinerjaView({ tasks, currentYear, handleAddActivity }) {
     if(!task.date) return false;
     return new Date(task.date).getFullYear().toString() === selectedYear;
   });
+  const overdueCatalogLoans = catalogLoans.filter(loan => {
+    if (!loan.dueDate || loan.returnedAt) return false;
+    const dueDate = new Date(`${loan.dueDate}T${loan.dueTime || '23:59'}:00`);
+    return dueDate < new Date() && new Date(loan.dueDate).getFullYear().toString() === selectedYear;
+  });
 
   const calculateKinerja = () => {
     const stats = {};
+    const ensurePic = (name) => {
+      const pic = name?.trim();
+      if (!pic) return null;
+      if (!stats[pic]) stats[pic] = { name: pic, score: 100, onTime: 0, late: 0, activeLate: 0, tasksList: [], overdueLoans: [] };
+      return pic;
+    };
     yearlyTasksForKinerja.forEach(task => {
-      if (!task.picName || task.picName.trim() === "") return;
-      const pic = task.picName.trim();
-      if (!stats[pic]) {
-        stats[pic] = { name: pic, score: 100, onTime: 0, late: 0, activeLate: 0, tasksList: [] };
-      }
-      stats[pic].tasksList.push(task);
+      const pic = ensurePic(task.picName);
+      if (pic) stats[pic].tasksList.push(task);
+    });
+    overdueCatalogLoans.forEach(loan => {
+      const pic = ensurePic(loan.picName);
+      if (pic) stats[pic].overdueLoans.push(loan);
     });
 
     const today = new Date();
@@ -862,6 +878,7 @@ function KinerjaView({ tasks, currentYear, handleAddActivity }) {
           }
         }
       });
+      currentScore -= stats[pic].overdueLoans.length * 5; // -5 poin untuk setiap katalog yang masih terlambat dikembalikan
       stats[pic].score = currentScore;
       stats[pic].onTime = onTimeCount;
       stats[pic].late = lateCount;
@@ -911,7 +928,7 @@ function KinerjaView({ tasks, currentYear, handleAddActivity }) {
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3 flex gap-3">
         <AlertTriangle size={16} className="text-blue-500 shrink-0 mt-0.5" />
         <p className="text-[10px] text-blue-800 leading-relaxed font-medium">
-          <b>Aturan Main:</b> Setiap orang start 100 poin tiap awal tahun. Terlambat -1 poin/hari. Submit tepat/awal waktu +1 poin (Maks 100). *Tugas yang di-hapus (Soft Delete) tetap masuk hitungan skor.
+          <b>Aturan Main:</b> Setiap orang start 100 poin tiap awal tahun. Terlambat tugas -1 poin/hari. Submit tepat/awal waktu +1 poin (maks. 100). Katalog yang belum dikembalikan setelah jatuh tempo mengurangi 5 poin per item. *Tugas yang dihapus tetap masuk hitungan skor.
         </p>
       </div>
 
@@ -936,7 +953,7 @@ function KinerjaView({ tasks, currentYear, handleAddActivity }) {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-bold text-slate-800 text-base leading-tight">{emp.name}</h3>
-                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">Tugas Selesai: {emp.onTime + emp.late} / {emp.tasksList.length}</p>
+                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">Tugas Selesai: {emp.onTime + emp.late} / {emp.tasksList.length} · Pinjaman telat: {emp.overdueLoans.length}</p>
                   </div>
                   <div className={`px-3 py-1.5 rounded-xl border flex flex-col items-center justify-center min-w-[65px] ${colorTheme}`}>
                      <span className="text-lg font-black leading-none">{emp.score}</span><span className="text-[8px] font-bold uppercase tracking-wider mt-0.5">Point</span>
@@ -945,10 +962,11 @@ function KinerjaView({ tasks, currentYear, handleAddActivity }) {
 
                 <div className="w-full bg-slate-100 rounded-full h-1.5 mt-4 overflow-hidden"><div className={`h-1.5 rounded-full ${barColor} transition-all duration-500`} style={{ width: `${Math.max(0, Math.min(100, emp.score))}%` }}></div></div>
 
-                <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-100">
+                <div className="grid grid-cols-4 gap-2 mt-4 pt-3 border-t border-slate-100">
                   <div className="flex flex-col items-center"><span className="flex items-center gap-1 text-[10px] font-bold text-green-600"><CheckCircle2 size={10}/> On Time</span><span className="text-sm font-black text-slate-700 mt-0.5">{emp.onTime}</span></div>
                   <div className="flex flex-col items-center border-x border-slate-100"><span className="flex items-center gap-1 text-[10px] font-bold text-orange-500"><TrendingDown size={10}/> Telat Selesai</span><span className="text-sm font-black text-slate-700 mt-0.5">{emp.late}</span></div>
                   <div className="flex flex-col items-center"><span className="flex items-center gap-1 text-[10px] font-bold text-red-500"><Clock size={10}/> Sedang Telat</span><span className="text-sm font-black text-slate-700 mt-0.5">{emp.activeLate}</span></div>
+                  <div className="flex flex-col items-center border-l border-slate-100"><span className="flex items-center gap-1 text-[10px] font-bold text-red-500"><FolderOpen size={10}/> Katalog</span><span className="text-sm font-black text-slate-700 mt-0.5">{emp.overdueLoans.length}</span></div>
                 </div>
               </div>
             );
@@ -983,7 +1001,8 @@ function KinerjaView({ tasks, currentYear, handleAddActivity }) {
                  <h2 style={{ margin: 0, fontSize: '18px', color: '#1e293b', fontWeight: '900' }}>#{idx+1} {emp.name}</h2>
                  <div style={{ fontSize: '14px', fontWeight: 'bold' }}><span style={{ color: emp.score >= 90 ? '#16a34a' : emp.score >= 75 ? '#ea580c' : '#dc2626' }}>Skor Akhir: {emp.score} Poin</span></div>
               </div>
-              <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#64748b' }}>Ringkasan: {emp.onTime} Tepat Waktu | {emp.late} Terlambat | {emp.activeLate} Belum Selesai (Lewat Deadline)</p>
+              <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#64748b' }}>Ringkasan: {emp.onTime} Tepat Waktu | {emp.late} Terlambat | {emp.activeLate} Belum Selesai (Lewat Deadline) | {emp.overdueLoans.length} Katalog Belum Kembali (-5/item)</p>
+              {emp.overdueLoans.length > 0 && <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: '#dc2626', fontWeight: 'bold' }}>Katalog terlambat: {emp.overdueLoans.map(loan => loan.catalogTitle).join(', ')}</p>}
               
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
                 <thead>
@@ -1322,8 +1341,94 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
 }
 
 /* ================= KOMPONEN KATALOG ================= */
-function KatalogView({ user, catalogItems, handleAddActivity }) {
+function PeminjamanKatalogView({ user, catalogItems, catalogLoans, handleAddActivity, onShowCatalog }) {
+  const today = new Date().toISOString().split('T')[0];
+  const [isAddingLoan, setIsAddingLoan] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newLoan, setNewLoan] = useState({ catalogId: '', picName: '', borrowDate: today, borrowTime: '09:00', dueDate: '', dueTime: '17:00', note: '' });
+  const activeLoans = catalogLoans.filter(loan => !loan.returnedAt);
+  const catalogOnLoanIds = new Set(activeLoans.map(loan => loan.catalogId));
+  const availableCatalogs = catalogItems.filter(item => !catalogOnLoanIds.has(item.id));
+  const isOverdue = (loan) => !loan.returnedAt && loan.dueDate && new Date(`${loan.dueDate}T${loan.dueTime || '23:59'}:00`) < new Date();
+
+  const resetLoanForm = () => {
+    setNewLoan({ catalogId: '', picName: '', borrowDate: today, borrowTime: '09:00', dueDate: '', dueTime: '17:00', note: '' });
+    setIsAddingLoan(false);
+  };
+
+  const handleSaveLoan = async () => {
+    const catalog = catalogItems.find(item => item.id === newLoan.catalogId);
+    if (!catalog || !newLoan.picName.trim() || !newLoan.borrowDate || !newLoan.dueDate) return alert('Pilih katalog, isi PIC, tanggal pinjam, dan tanggal kembali.');
+    if (newLoan.dueDate < newLoan.borrowDate || (newLoan.dueDate === newLoan.borrowDate && newLoan.dueTime <= newLoan.borrowTime)) return alert('Waktu pengembalian harus setelah waktu peminjaman.');
+    setIsSubmitting(true);
+    try {
+      await addDoc(getCol('catalogLoans'), {
+        catalogId: catalog.id, catalogTitle: catalog.title, catalogCategory: catalog.category || '', picName: newLoan.picName.trim(),
+        borrowDate: newLoan.borrowDate, borrowTime: newLoan.borrowTime, dueDate: newLoan.dueDate, dueTime: newLoan.dueTime, note: newLoan.note.trim(), status: 'Dipinjam',
+        createdBy: user.name, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+      });
+      handleAddActivity(`Mencatat peminjaman katalog "${catalog.title}" oleh ${newLoan.picName.trim()}`, 'FolderOpen', 'text-orange-500', 'bg-orange-50');
+      resetLoanForm();
+    } catch (error) { console.error(error); alert('Gagal mencatat peminjaman: ' + error.message); }
+    finally { setIsSubmitting(false); }
+  };
+
+  const handleReturnLoan = async (loan) => {
+    try {
+      const returnedAt = new Date().toISOString();
+      await updateDoc(getDoc('catalogLoans', loan.id), { status: 'Dikembalikan', returnedAt, returnedBy: user.name, updatedAt: returnedAt });
+      handleAddActivity(`Katalog "${loan.catalogTitle}" dikembalikan oleh ${loan.picName}`, 'CheckCircle2', 'text-green-500', 'bg-green-50');
+    } catch (error) { console.error(error); alert('Gagal memperbarui status pengembalian: ' + error.message); }
+  };
+
+  return (
+    <div className="space-y-5 animation-fade-in">
+      <div>
+        <h2 className="text-xl font-bold text-slate-800">Daftar Katalog</h2>
+        <p className="text-xs font-medium text-slate-500 mt-1">Kelola data katalog dan peminjamannya</p>
+      </div>
+      <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <button onClick={onShowCatalog} className="px-3 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800">Daftar Katalog</button>
+        <button className="px-3 py-2 rounded-lg text-xs font-bold bg-white text-blue-600 shadow-sm">Pinjam Katalog <span className="ml-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] text-orange-700">{activeLoans.length}</span></button>
+      </div>
+
+      {isAddingLoan ? (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 space-y-5">
+          <div className="flex items-center justify-between"><div><h3 className="font-bold text-slate-800">Catat Peminjaman Katalog</h3><p className="text-[10px] text-slate-500 mt-1">PIC bertanggung jawab sampai katalog dikembalikan.</p></div><button onClick={resetLoanForm} className="text-slate-400 hover:text-slate-700"><X size={20}/></button></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Katalog yang dipinjam</label><select value={newLoan.catalogId} onChange={e => setNewLoan({ ...newLoan, catalogId: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"><option value="">Pilih katalog tersedia</option>{availableCatalogs.map(item => <option key={item.id} value={item.id}>{item.title} — {item.category}</option>)}</select>{availableCatalogs.length === 0 && <p className="text-[10px] text-orange-600 mt-1.5">Semua katalog sedang dipinjam atau belum ada katalog.</p>}</div>
+            <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">PIC peminjam</label><div className="relative"><User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={newLoan.picName} onChange={e => setNewLoan({ ...newLoan, picName: e.target.value })} placeholder="Nama PIC yang bertanggung jawab" className="w-full pl-9 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div></div>
+            <div className="grid grid-cols-2 gap-2"><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tanggal pinjam</label><input type="date" value={newLoan.borrowDate} onChange={e => setNewLoan({ ...newLoan, borrowDate: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Jam pinjam</label><input type="time" value={newLoan.borrowTime} onChange={e => setNewLoan({ ...newLoan, borrowTime: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div></div>
+            <div className="grid grid-cols-2 gap-2"><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tanggal kembali</label><input type="date" value={newLoan.dueDate} onChange={e => setNewLoan({ ...newLoan, dueDate: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Jam kembali</label><input type="time" value={newLoan.dueTime} onChange={e => setNewLoan({ ...newLoan, dueTime: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div></div>
+            <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Keterangan <span className="normal-case font-medium">(opsional)</span></label><textarea rows="3" value={newLoan.note} onChange={e => setNewLoan({ ...newLoan, note: e.target.value })} placeholder="Contoh: keperluan presentasi klien" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none resize-none focus:ring-2 focus:ring-blue-500" /></div>
+          </div>
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100"><button disabled={isSubmitting} onClick={resetLoanForm} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50">Batal</button><button disabled={isSubmitting} onClick={handleSaveLoan} className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm disabled:opacity-50">{isSubmitting ? 'Menyimpan...' : 'Simpan Peminjaman'}</button></div>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-blue-50 border border-blue-100 rounded-2xl p-4">
+            <div className="flex gap-3"><AlertTriangle size={18} className="text-blue-600 shrink-0 mt-0.5"/><p className="text-[11px] leading-relaxed text-blue-800"><b>Aturan peminjaman:</b> katalog yang terlambat dan belum dikembalikan mengurangi 5 poin pada Kinerja PIC.</p></div>
+            <button onClick={() => setIsAddingLoan(true)} className="shrink-0 bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm hover:bg-blue-700 flex items-center justify-center gap-1.5"><Plus size={16}/> Catat Pinjam</button>
+          </div>
+          <div className="space-y-3">
+            {catalogLoans.length === 0 ? <div className="text-center py-10 bg-white rounded-2xl border border-slate-200 shadow-sm"><FolderOpen size={32} className="mx-auto text-slate-300 mb-2"/><p className="text-sm font-bold text-slate-600">Belum ada peminjaman</p><p className="text-xs text-slate-400 mt-1">Catat peminjaman katalog pertama Anda.</p></div> : catalogLoans.map(loan => {
+              const overdue = isOverdue(loan);
+              return <div key={loan.id} className={`bg-white rounded-2xl border p-4 shadow-sm ${overdue ? 'border-red-200' : 'border-slate-200'}`}>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2 mb-1"><h3 className="font-bold text-slate-800">{loan.catalogTitle}</h3><span className={`text-[9px] font-bold px-2 py-1 rounded-full ${loan.returnedAt ? 'bg-green-100 text-green-700' : overdue ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>{loan.returnedAt ? 'Dikembalikan' : overdue ? 'Terlambat' : 'Dipinjam'}</span></div><p className="text-xs text-slate-500 flex items-center gap-1.5"><User size={13}/> PIC: <b className="text-slate-700">{loan.picName}</b></p></div>{!loan.returnedAt && <button onClick={() => handleReturnLoan(loan)} className="shrink-0 bg-green-600 text-white px-3 py-2 rounded-xl text-xs font-bold hover:bg-green-700 flex items-center justify-center gap-1.5"><CheckCircle2 size={15}/> Tandai Dikembalikan</button>}</div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 pt-3 border-t border-slate-100 text-[10px]"><div><p className="font-bold text-slate-400 uppercase">Waktu pinjam</p><p className="font-semibold text-slate-700 mt-1">{loan.borrowDate} · {loan.borrowTime || '-'}</p></div><div><p className="font-bold text-slate-400 uppercase">Batas kembali</p><p className={`font-semibold mt-1 ${overdue ? 'text-red-600' : 'text-slate-700'}`}>{loan.dueDate} · {loan.dueTime || '-'}</p></div><div><p className="font-bold text-slate-400 uppercase">Pengembalian</p><p className="font-semibold text-slate-700 mt-1">{loan.returnedAt ? new Date(loan.returnedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : 'Belum dikembalikan'}</p></div></div>
+                {loan.note && <p className="mt-3 text-[11px] italic text-slate-500 bg-slate-50 border border-slate-100 rounded-lg p-2.5">“{loan.note}”</p>}
+              </div>;
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeCatalogTab, setActiveCatalogTab] = useState('katalog');
   const [activeFilter, setActiveFilter] = useState('Semua');
   const [sortOption, setSortOption] = useState('Terbaru Ditambah');
   const [isAddingData, setIsAddingData] = useState(false);
@@ -1439,11 +1544,17 @@ function KatalogView({ user, catalogItems, handleAddActivity }) {
     );
   }
 
+  if (activeCatalogTab === 'peminjaman') return <PeminjamanKatalogView user={user} catalogItems={catalogItems} catalogLoans={catalogLoans} handleAddActivity={handleAddActivity} onShowCatalog={() => setActiveCatalogTab('katalog')} />;
+
   return (
     <div className="space-y-5 animation-fade-in">
       <div className="flex justify-between items-start">
         <div><h2 className="text-xl font-bold text-slate-800">Daftar Katalog</h2><p className="text-xs font-medium text-slate-500 mt-1">Tersinkronisasi dengan Database</p></div>
         <div className="flex gap-2"><button onClick={() => { setNewData({title: '', date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: ''}); setEditingCatalogId(null); setIsAddingData(true); }} className="bg-blue-600 text-white px-3 py-2.5 rounded-xl shadow-sm flex items-center gap-1.5 hover:bg-blue-700 active:scale-95 transition-all"><Plus size={16} strokeWidth={3} /><span className="text-xs font-bold pr-1">Tambah</span></button></div>
+      </div>
+      <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <button className="px-3 py-2 rounded-lg text-xs font-bold bg-white text-blue-600 shadow-sm">Daftar Katalog</button>
+        <button onClick={() => setActiveCatalogTab('peminjaman')} className="px-3 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800">Pinjam Katalog <span className="ml-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] text-orange-700">{catalogLoans.filter(loan => !loan.returnedAt).length}</span></button>
       </div>
       <div className="flex gap-2">
         <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input type="text" placeholder="Cari..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
