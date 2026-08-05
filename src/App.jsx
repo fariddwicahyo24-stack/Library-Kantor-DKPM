@@ -27,7 +27,7 @@ const fallbackConfig = {
   measurementId: "G-9T0S15CS54"
 };
 
-// Deteksi Environment: Gunakan config canvas jika ada, jika tidak gunakan fallback
+// Deteksi Environment
 const isCanvasEnv = typeof __firebase_config !== 'undefined';
 const firebaseConfig = isCanvasEnv ? JSON.parse(__firebase_config) : fallbackConfig;
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'prosync-app-dkpm';
@@ -37,7 +37,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
-// HELPER: Dynamic Firestore Paths (Agar jalan di Canvas & Local Prod)
+// HELPER: Dynamic Firestore Paths
 const getCol = (colName) => isCanvasEnv ? collection(db, 'artifacts', appId, 'public', 'data', colName) : collection(db, colName);
 const getDoc = (colName, docId) => isCanvasEnv ? doc(db, 'artifacts', appId, 'public', 'data', colName, docId) : doc(db, colName, docId);
 
@@ -77,14 +77,13 @@ const formatTimeAgo = (isoString) => {
   return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
 };
 
-// Global Helper untuk Export PDF HD (Perbaikan Layout A4 Landscape)
+// Global Helper untuk Export PDF HD
 const executePDFExport = async (elementId, fileName, gdriveFolder, progressCallback) => {
   const element = document.getElementById(elementId);
   if (!element) throw new Error("Template PDF tidak ditemukan.");
   
   element.style.display = 'block';
   
-  // Konfigurasi Baru untuk A4 Landscape
   const opt = {
     margin:       [0, 0, 0, 0],
     filename:     fileName,
@@ -112,7 +111,6 @@ const executePDFExport = async (elementId, fileName, gdriveFolder, progressCallb
      const base64Str = pdfBase64DataUri.split(',')[1];
      progressCallback(60);
 
-     // Download Lokal
      const link = document.createElement('a');
      link.href = pdfBase64DataUri;
      link.download = fileName;
@@ -120,7 +118,6 @@ const executePDFExport = async (elementId, fileName, gdriveFolder, progressCallb
      link.click();
      document.body.removeChild(link);
 
-     // Upload ke G-Drive
      progressCallback(80);
      const response = await fetch(GOOGLE_SCRIPT_URL, {
         method: "POST",
@@ -178,6 +175,7 @@ function DraggableImage({ src, x = 50, y = 50, onChange, mode = 'cover' }) {
   );
 }
 
+
 // === APLIKASI UTAMA ===
 export default function App() {
   const [activeTab, setActiveTab] = useState('tugas'); 
@@ -194,8 +192,8 @@ export default function App() {
   const [forms, setForms] = useState([]);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear().toString());
 
+  // === 1. HOOK AUTHENTICATION ===
   useEffect(() => {
-    // 1. DAFTAR EMAIL TIM YANG DIZINKAN AKSES
     const ALLOWED_EMAILS = [
       "fariddwicahyo24@gmail.com",
       "hardiansyahrizky386@gmail.com",
@@ -214,7 +212,6 @@ export default function App() {
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        // Cek jika user Anonymous (Admin Preview di local/canvas)
         if (currentUser.isAnonymous) {
           const name = 'Admin Preview';
           const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
@@ -224,17 +221,11 @@ export default function App() {
 
         const userEmail = currentUser.email ? currentUser.email.toLowerCase() : "";
 
-        // 2. CEK APAKAH EMAIL TERDAFTAR DI WHITELIST
         if (ALLOWED_EMAILS.includes(userEmail)) {
           const name = currentUser.displayName || 'Pengguna';
           const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-          
-          // Set role Admin
-          const userRole = 'Admin'; 
-
-          setUser({ name, initials, uid: currentUser.uid, role: userRole, email: userEmail });
+          setUser({ name, initials, uid: currentUser.uid, role: 'Admin', email: userEmail });
         } else {
-          // Jika email tidak terdaftar, paksa logout dan tolak akses
           await signOut(auth);
           setUser(null);
           alert(`Akses Ditolak: Akun (${userEmail}) tidak terdaftar dalam sistem. Silakan hubungi Administrator.`);
@@ -247,9 +238,11 @@ export default function App() {
     return () => unsubscribeAuth();
   }, []);
 
-  // Fetch Data Firestore (Realtime)
+  // === 2. HOOK FIRESTORE DATA (REALTIME) ===
   useEffect(() => {
+    // Perbaikan: Pastikan Hook tidak dijalankan jika user belum login
     if (!user) return;
+    
     const unsubProyek = onSnapshot(getCol('projects'), (snapshot) => setDatabaseProyek(snapshot.docs.map(doc => doc.data().name)));
     const unsubTasks = onSnapshot(query(getCol('tasks')), (snapshot) => {
       const taskData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -276,7 +269,52 @@ export default function App() {
     return () => { unsubProyek(); unsubTasks(); unsubActivities(); unsubKatalog(); unsubCatalogLoans(); unsubForms(); };
   }, [user]);
 
-  // Auto Refresh system (setiap 30 menit) & Manual Sync
+  // === 3. HOOK NOTIFIKASI DEADLINE (6 JAM SEKALI) ===
+  useEffect(() => {
+    if (!user || tasks.length === 0) return;
+
+    const deadlineTasks = tasks.filter(t => {
+      if (t.status === 'Done' || t.isDeleted) return false;
+      const today = new Date(); 
+      today.setHours(0,0,0,0);
+      
+      const taskDate = new Date(t.date); 
+      taskDate.setHours(0,0,0,0);
+      
+      const diffDays = Math.ceil((taskDate - today) / (1000 * 60 * 60 * 24));
+      return diffDays >= 0 && diffDays <= 3;
+    });
+
+    if (deadlineTasks.length > 0) {
+      const lastNotifTime = localStorage.getItem('lastDeadlineNotifTime');
+      const now = new Date().getTime();
+      const sixHoursInMs = 6 * 60 * 60 * 1000;
+
+      if (!lastNotifTime || (now - parseInt(lastNotifTime)) >= sixHoursInMs) {
+        setShowNotif(true);
+
+        if ("Notification" in window) {
+          if (Notification.permission === "granted") {
+            new Notification("Peringatan Deadline ProSync", {
+              body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari). Segera cek tab Tugas!`,
+              icon: "https://cdn-icons-png.flaticon.com/512/1008/1008015.png" 
+            });
+          } else if (Notification.permission !== "denied") {
+            Notification.requestPermission().then(permission => {
+              if (permission === "granted") {
+                new Notification("Peringatan Deadline ProSync", {
+                  body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari).`
+                });
+              }
+            });
+          }
+        }
+        localStorage.setItem('lastDeadlineNotifTime', now.toString());
+      }
+    }
+  }, [tasks, user]); 
+
+  // === 4. HOOK AUTO REFRESH ===
   const handleManualSync = () => {
     setIsSyncing(true);
     setTimeout(() => {
@@ -288,10 +326,11 @@ export default function App() {
   useEffect(() => {
     const interval = setInterval(() => {
       handleManualSync();
-    }, 30 * 60 * 1000); // 30 minutes
+    }, 30 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
+  // === 5. FUNGSI HANDLER ===
   const handleAddActivity = async (msg, iconName, colorClass, bgClass) => {
     try { await addDoc(getCol('activities'), { msg, time: new Date().toISOString(), icon: iconName, color: colorClass, bg: bgClass, user: user?.name || 'Sistem' }); } catch (error) { console.error(error); }
   };
@@ -308,11 +347,11 @@ export default function App() {
     { id: 'kinerja', label: 'Kinerja', icon: Award }
   ];
 
+  // === 6. RENDER KONDISIONAL UTAMA ===
   if (!user) return <LoginScreen />;
 
   return (
     <div className="min-h-[100dvh] bg-slate-100 font-sans text-slate-800">
-      {/* GLOBAL STYLES UNTUK PDF A4 FIX */}
       <style>{`
         .pdf-page-break { break-inside: avoid; page-break-inside: avoid; }
         html, body, #root { min-height: 100%; }
@@ -897,7 +936,6 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
           deadline.setHours(0,0,0,0);
 
           if (doneDate <= deadline) {
-            // Ditambahkan dukungan poin custom kinerja 
             currentScore += (task.points ? Number(task.points) : 1);
             onTimeCount++;
           } else {
@@ -914,7 +952,6 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
         }
       });
 
-      // Perhitungan Penalti Katalog -1 Poin per hari keterlambatan
       let totalCatalogPenalty = 0;
       const nowTime = new Date();
       stats[pic].overdueLoans.forEach(loan => {
