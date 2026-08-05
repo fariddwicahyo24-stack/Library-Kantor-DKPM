@@ -87,7 +87,7 @@ const executePDFExport = async (elementId, fileName, gdriveFolder, progressCallb
     image:        { type: 'jpeg', quality: 1 },
     html2canvas:  { scale: 3, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
-    pagebreak:    { mode: ['avoid-all'] } // Perbaikan pagebreak menghindari potong gambar
+    pagebreak:    { mode: ['avoid-all'] }
   };
   
   try {
@@ -122,7 +122,7 @@ const executePDFExport = async (elementId, fileName, gdriveFolder, progressCallb
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
-          action: "uploadCatalog", // Memanfaatkan logic upload generic yang sudah ada
+          action: "uploadCatalog",
           folderPath: gdriveFolder,
           fileName: fileName,
           title: fileName,
@@ -187,10 +187,10 @@ export default function App() {
   const [activities, setActivities] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
   const [catalogLoans, setCatalogLoans] = useState([]);
+  const [forms, setForms] = useState([]);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear().toString());
 
   useEffect(() => {
-    // Custom logic untuk environment Immersive Canvas
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
         try { await signInWithCustomToken(auth, __initial_auth_token); } catch(e){}
@@ -233,8 +233,12 @@ export default function App() {
       const loanData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setCatalogLoans(loanData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
     });
+    const unsubForms = onSnapshot(query(getCol('forms')), (snapshot) => {
+      const formData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setForms(formData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
+    });
 
-    return () => { unsubProyek(); unsubTasks(); unsubActivities(); unsubKatalog(); unsubCatalogLoans(); };
+    return () => { unsubProyek(); unsubTasks(); unsubActivities(); unsubKatalog(); unsubCatalogLoans(); unsubForms(); };
   }, [user]);
 
   // Auto Refresh system (setiap 30 menit) & Manual Sync
@@ -265,6 +269,7 @@ export default function App() {
     { id: 'survei', label: 'Survei', icon: Camera },
     { id: 'progres', label: 'Progres', icon: TrendingUp },
     { id: 'katalog', label: 'Katalog', icon: FolderOpen },
+    { id: 'formulir', label: 'Formulir', icon: Download },
     { id: 'kinerja', label: 'Kinerja', icon: Award }
   ];
 
@@ -345,6 +350,7 @@ export default function App() {
           {activeTab === 'survei' && <SurveiView title="Survei & Setup Proyek" databaseProyek={databaseProyek} handleAddActivity={handleAddActivity} />}
           {activeTab === 'progres' && <ProgresPPTView title="Laporan Progres" databaseProyek={databaseProyek} handleAddActivity={handleAddActivity} />}
           {activeTab === 'katalog' && <KatalogView user={user} catalogItems={catalogItems} catalogLoans={catalogLoans} handleAddActivity={handleAddActivity} />}
+          {activeTab === 'formulir' && <FormulirView user={user} forms={forms} handleAddActivity={handleAddActivity} />}
           {activeTab === 'kinerja' && <KinerjaView tasks={tasks} catalogLoans={catalogLoans} currentYear={currentYear} handleAddActivity={handleAddActivity} />}
         </main>
 
@@ -370,7 +376,6 @@ export default function App() {
 
 /* ================= KOMPONEN HALAMAN BERANDA ================= */
 function BerandaView({ userName, tasks, activities }) {
-  // Hanya hitung tugas yang belum dihapus
   const activeTasksCount = tasks.filter(t => t.status !== 'Done' && !t.isDeleted).length;
   const deadlineTasksCount = tasks.filter(t => {
     if (t.status === 'Done' || t.isDeleted) return false;
@@ -432,27 +437,25 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
   const [isExporting, setIsExporting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Modal Bukti Selesai & Delete
   const [proofModal, setProofModal] = useState({ isOpen: false, task: null });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const proofFileInput = useRef(null);
   const [selectedProof, setSelectedProof] = useState(null);
 
-  // Daftar nama PIC yang unik dari database tugas (Autocomplete)
   const uniquePICs = [...new Set(tasks.map(t => t.picName).filter(name => name && name.trim() !== ""))];
   
-  const [newTask, setNewTask] = useState({ title: '', project: '', date: '', time: '', location: '', picName: '', picContact: '', desc: '' });
+  const [newTask, setNewTask] = useState({ title: '', project: '', date: '', time: '', location: '', picName: '', picContact: '', desc: '', points: 0 });
 
   const handleOpenAddForm = () => {
     if(user.role !== 'Admin') return alert("Hanya Admin yang dapat membuat tugas.");
-    setNewTask({title: '', project: '', date: '', time: '', location: '', picName: '', picContact: '', desc: ''});
+    setNewTask({title: '', project: '', date: '', time: '', location: '', picName: '', picContact: '', desc: '', points: 0});
     setEditingTaskData(null);
     setIsAddingTask(true);
   };
 
   const handleOpenEditForm = (task) => {
     if(user.role !== 'Admin') return alert("Hanya Admin yang dapat mengedit tugas.");
-    setNewTask(task);
+    setNewTask({...task, points: task.points || 0});
     setEditingTaskData(task);
     setIsAddingTask(true);
   };
@@ -477,7 +480,6 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
 
   const handleStatusChange = async (task, newStatus) => {
     if (newStatus === 'Done') {
-      // Buka Modal Upload Bukti jika akan diselesaikan
       setProofModal({ isOpen: true, task });
     } else {
       try { 
@@ -487,7 +489,6 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
     }
   };
 
-  // Proses Submit Bukti Foto
   const handleUploadProof = async () => {
     if (!selectedProof) return alert("Pilih foto screenshot tugas terlebih dahulu!");
     setIsSubmitting(true);
@@ -499,16 +500,15 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
        setUploadProgress(50);
        
        const safeFileName = `Submit_Tugas_${task.picName}_${new Date().getTime()}.jpg`;
-       // Folder Submission Standar
        let taskYear = new Date(task.date).getFullYear().toString();
-       let taskCategory = "Umum"; // Default fallback
+       let taskCategory = "Umum";
        const folderPathStr = `APP DKPM/Proyek ${taskYear}/${taskCategory}/${task.project}/09. SUBMISSION/Task Submit App`;
 
        const response = await fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify({
-            action: "uploadCatalog", // Menggunakan logic upload yang sama
+            action: "uploadCatalog",
             folderPath: folderPathStr,
             fileData: { name: safeFileName, mimeType: base64Data.mimeType, base64: base64Data.base64 },
             title: `Bukti Tugas ${task.title}`,
@@ -547,11 +547,9 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
     }
   };
 
-  // Proses Soft Delete Task
   const executeDeleteTask = async () => {
     if(!deleteConfirm) return;
     try {
-      // SOFT DELETE: isDeleted = true, tidak dihapus permanen agar tetap masuk poin Kinerja
       await updateDoc(getDoc('tasks', deleteConfirm.id), { isDeleted: true });
       handleAddActivity(`Admin menghapus (arsip) tugas "${deleteConfirm.title}"`, 'Trash2', 'text-red-500', 'bg-red-50');
       setDeleteConfirm(null);
@@ -560,8 +558,6 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
     }
   };
 
-
-  // Filter Tasks (Hilangkan yang Soft Deleted)
   const yearlyTasks = tasks.filter(task => {
     if(!task.date || task.isDeleted) return false;
     const taskYear = new Date(task.date).getFullYear().toString();
@@ -623,15 +619,19 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
+            <div>
               <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">4. Nama PIC (Assign Ke)</label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input type="text" list="pic-history-list" placeholder="Pilih atau ketik nama baru..." value={newTask.picName} onChange={e => setNewTask({...newTask, picName: e.target.value})} className="w-full pl-9 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="text" list="pic-history-list" placeholder="Pilih atau ketik..." value={newTask.picName} onChange={e => setNewTask({...newTask, picName: e.target.value})} className="w-full pl-9 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                 <datalist id="pic-history-list">
                   {uniquePICs.map((name, idx) => <option key={idx} value={name} />)}
                 </datalist>
               </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">Skor Poin Kinerja</label>
+              <input type="number" value={newTask.points || ''} onChange={e => setNewTask({...newTask, points: parseInt(e.target.value) || 0})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Cth: 10" />
             </div>
           </div>
           <div>
@@ -714,7 +714,10 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
                   )}
                 </div>
               </div>
-              <h3 className={`font-bold leading-tight ${task.status === 'Done' ? 'text-slate-500' : 'text-slate-800'}`}>{task.title}</h3>
+              <h3 className={`font-bold leading-tight ${task.status === 'Done' ? 'text-slate-500' : 'text-slate-800'}`}>
+                {task.title}
+                {task.points > 0 && <span className="inline-block align-middle ml-2 text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md">{task.points} Pts</span>}
+              </h3>
               {task.desc && <div className="mt-2 mb-1 p-2 rounded-r-lg border-l-2 bg-slate-50 border-slate-300"><p className="text-[10px] italic leading-snug text-slate-500">"{task.desc}"</p></div>}
               
               <div className="mt-2 space-y-1">
@@ -726,7 +729,6 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
                   <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-[9px]">{task.picName.substring(0,2).toUpperCase()}</div>
                   <span className="text-xs font-bold text-slate-700">{task.picName}</span>
                 </div>
-                {/* TAMPILKAN TOMBOL LINK BUKTI JIKA SUDAH ADA */}
                 {task.proofUrl && (
                   <button onClick={() => window.open(task.proofUrl, '_blank')} className="flex items-center gap-1 text-[9px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 transition-colors shadow-sm">
                     <LinkIcon size={10} /> Cek Bukti Kerja
@@ -738,7 +740,6 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
         )}
       </div>
 
-      {/* MODAL UPLOAD BUKTI FOTO (TUGAS SELESAI) */}
       {proofModal.isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animation-fade-in">
           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative">
@@ -767,7 +768,6 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
         </div>
       )}
 
-      {/* POP-UP KONFIRMASI HAPUS TUGAS (SOFT DELETE) */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animation-fade-in">
           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative">
@@ -810,13 +810,12 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
   );
 }
 
-/* ================= KOMPONEN KINERJA VIEW (MEMASUKKAN SEMUA TUGAS, TERMASUK YG DIHAPUS) ================= */
+/* ================= KOMPONEN KINERJA VIEW (PENALTI KATALOG -1 POINT PER HARI) ================= */
 function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [isExporting, setIsExporting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // KINERJA MENGHITUNG SELURUH TUGAS (Walau di-Soft Delete / isDeleted = true)
   const yearlyTasksForKinerja = tasks.filter(task => {
     if(!task.date) return false;
     return new Date(task.date).getFullYear().toString() === selectedYear;
@@ -832,7 +831,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
     const ensurePic = (name) => {
       const pic = name?.trim();
       if (!pic) return null;
-      if (!stats[pic]) stats[pic] = { name: pic, score: 100, onTime: 0, late: 0, activeLate: 0, tasksList: [], overdueLoans: [] };
+      if (!stats[pic]) stats[pic] = { name: pic, score: 100, onTime: 0, late: 0, activeLate: 0, tasksList: [], overdueLoans: [], totalCatalogPenaltyDays: 0 };
       return pic;
     };
     yearlyTasksForKinerja.forEach(task => {
@@ -863,11 +862,12 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
           deadline.setHours(0,0,0,0);
 
           if (doneDate <= deadline) {
-            currentScore = Math.min(100, currentScore + 1); // Tambah point max 100
+            // Ditambahkan dukungan poin custom kinerja 
+            currentScore += (task.points ? Number(task.points) : 1);
             onTimeCount++;
           } else {
             const diffDays = Math.ceil(Math.abs(doneDate - deadline) / (1000 * 60 * 60 * 24));
-            currentScore -= diffDays; // Kurang point per hari telat
+            currentScore -= diffDays;
             lateCount++;
           }
         } else {
@@ -878,11 +878,26 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
           }
         }
       });
-      currentScore -= stats[pic].overdueLoans.length * 5; // -5 poin untuk setiap katalog yang masih terlambat dikembalikan
+
+      // Perhitungan Penalti Katalog -1 Poin per hari keterlambatan
+      let totalCatalogPenalty = 0;
+      const nowTime = new Date();
+      stats[pic].overdueLoans.forEach(loan => {
+        if(loan.dueDate) {
+          const dueDateObj = new Date(`${loan.dueDate}T${loan.dueTime || '23:59'}:00`);
+          if(nowTime > dueDateObj) {
+             const diffDays = Math.ceil(Math.abs(nowTime - dueDateObj) / (1000 * 60 * 60 * 24));
+             totalCatalogPenalty += diffDays;
+          }
+        }
+      });
+
+      currentScore -= totalCatalogPenalty;
       stats[pic].score = currentScore;
       stats[pic].onTime = onTimeCount;
       stats[pic].late = lateCount;
       stats[pic].activeLate = activeLateCount;
+      stats[pic].totalCatalogPenaltyDays = totalCatalogPenalty;
     });
 
     return Object.values(stats).sort((a, b) => b.score - a.score);
@@ -928,7 +943,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3 flex gap-3">
         <AlertTriangle size={16} className="text-blue-500 shrink-0 mt-0.5" />
         <p className="text-[10px] text-blue-800 leading-relaxed font-medium">
-          <b>Aturan Main:</b> Setiap orang start 100 poin tiap awal tahun. Terlambat tugas -1 poin/hari. Submit tepat/awal waktu +1 poin (maks. 100). Katalog yang belum dikembalikan setelah jatuh tempo mengurangi 5 poin per item. *Tugas yang dihapus tetap masuk hitungan skor.
+          <b>Aturan Main:</b> Setiap orang start 100 poin tiap awal tahun. Terlambat tugas -1 poin/hari. Submit tepat waktu akan menambahkan Poin sesuai input Admin pada Tugas (default +1). Katalog yang belum dikembalikan setelah jatuh tempo mengurangi <b>1 poin per hari</b>. *Tugas yang dihapus tetap masuk hitungan skor.
         </p>
       </div>
 
@@ -953,7 +968,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-bold text-slate-800 text-base leading-tight">{emp.name}</h3>
-                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">Tugas Selesai: {emp.onTime + emp.late} / {emp.tasksList.length} · Pinjaman telat: {emp.overdueLoans.length}</p>
+                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">Tugas Selesai: {emp.onTime + emp.late} / {emp.tasksList.length} · Pinjaman telat: {emp.overdueLoans.length} (-{emp.totalCatalogPenaltyDays} hari)</p>
                   </div>
                   <div className={`px-3 py-1.5 rounded-xl border flex flex-col items-center justify-center min-w-[65px] ${colorTheme}`}>
                      <span className="text-lg font-black leading-none">{emp.score}</span><span className="text-[8px] font-bold uppercase tracking-wider mt-0.5">Point</span>
@@ -966,7 +981,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
                   <div className="flex flex-col items-center"><span className="flex items-center gap-1 text-[10px] font-bold text-green-600"><CheckCircle2 size={10}/> On Time</span><span className="text-sm font-black text-slate-700 mt-0.5">{emp.onTime}</span></div>
                   <div className="flex flex-col items-center border-x border-slate-100"><span className="flex items-center gap-1 text-[10px] font-bold text-orange-500"><TrendingDown size={10}/> Telat Selesai</span><span className="text-sm font-black text-slate-700 mt-0.5">{emp.late}</span></div>
                   <div className="flex flex-col items-center"><span className="flex items-center gap-1 text-[10px] font-bold text-red-500"><Clock size={10}/> Sedang Telat</span><span className="text-sm font-black text-slate-700 mt-0.5">{emp.activeLate}</span></div>
-                  <div className="flex flex-col items-center border-l border-slate-100"><span className="flex items-center gap-1 text-[10px] font-bold text-red-500"><FolderOpen size={10}/> Katalog</span><span className="text-sm font-black text-slate-700 mt-0.5">{emp.overdueLoans.length}</span></div>
+                  <div className="flex flex-col items-center border-l border-slate-100"><span className="flex items-center gap-1 text-[10px] font-bold text-red-500"><FolderOpen size={10}/> Penalti Katalog</span><span className="text-sm font-black text-slate-700 mt-0.5">-{emp.totalCatalogPenaltyDays} Pts</span></div>
                 </div>
               </div>
             );
@@ -1001,7 +1016,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
                  <h2 style={{ margin: 0, fontSize: '18px', color: '#1e293b', fontWeight: '900' }}>#{idx+1} {emp.name}</h2>
                  <div style={{ fontSize: '14px', fontWeight: 'bold' }}><span style={{ color: emp.score >= 90 ? '#16a34a' : emp.score >= 75 ? '#ea580c' : '#dc2626' }}>Skor Akhir: {emp.score} Poin</span></div>
               </div>
-              <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#64748b' }}>Ringkasan: {emp.onTime} Tepat Waktu | {emp.late} Terlambat | {emp.activeLate} Belum Selesai (Lewat Deadline) | {emp.overdueLoans.length} Katalog Belum Kembali (-5/item)</p>
+              <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#64748b' }}>Ringkasan: {emp.onTime} Tepat Waktu | {emp.late} Terlambat | {emp.activeLate} Belum Selesai (Lewat Deadline) | {emp.overdueLoans.length} Katalog Belum Kembali (-{emp.totalCatalogPenaltyDays} Poin)</p>
               {emp.overdueLoans.length > 0 && <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: '#dc2626', fontWeight: 'bold' }}>Katalog terlambat: {emp.overdueLoans.map(loan => loan.catalogTitle).join(', ')}</p>}
               
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
@@ -1341,15 +1356,22 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
 }
 
 /* ================= KOMPONEN KATALOG ================= */
-function PeminjamanKatalogView({ user, catalogItems, catalogLoans, handleAddActivity, onShowCatalog }) {
+function PeminjamanKatalogView({ user, catalogItems, catalogLoans, handleAddActivity, onShowCatalog, defaultCatalogId = '' }) {
   const today = new Date().toISOString().split('T')[0];
   const [isAddingLoan, setIsAddingLoan] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [newLoan, setNewLoan] = useState({ catalogId: '', picName: '', borrowDate: today, borrowTime: '09:00', dueDate: '', dueTime: '17:00', note: '' });
+  const [newLoan, setNewLoan] = useState({ catalogId: defaultCatalogId, picName: '', borrowDate: today, borrowTime: '09:00', dueDate: '', dueTime: '17:00', note: '' });
   const activeLoans = catalogLoans.filter(loan => !loan.returnedAt);
   const catalogOnLoanIds = new Set(activeLoans.map(loan => loan.catalogId));
   const availableCatalogs = catalogItems.filter(item => !catalogOnLoanIds.has(item.id));
   const isOverdue = (loan) => !loan.returnedAt && loan.dueDate && new Date(`${loan.dueDate}T${loan.dueTime || '23:59'}:00`) < new Date();
+
+  useEffect(() => {
+    if (defaultCatalogId) {
+      setNewLoan(prev => ({ ...prev, catalogId: defaultCatalogId }));
+      setIsAddingLoan(true);
+    }
+  }, [defaultCatalogId]);
 
   const resetLoanForm = () => {
     setNewLoan({ catalogId: '', picName: '', borrowDate: today, borrowTime: '09:00', dueDate: '', dueTime: '17:00', note: '' });
@@ -1407,7 +1429,7 @@ function PeminjamanKatalogView({ user, catalogItems, catalogLoans, handleAddActi
       ) : (
         <>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-blue-50 border border-blue-100 rounded-2xl p-4">
-            <div className="flex gap-3"><AlertTriangle size={18} className="text-blue-600 shrink-0 mt-0.5"/><p className="text-[11px] leading-relaxed text-blue-800"><b>Aturan peminjaman:</b> katalog yang terlambat dan belum dikembalikan mengurangi 5 poin pada Kinerja PIC.</p></div>
+            <div className="flex gap-3"><AlertTriangle size={18} className="text-blue-600 shrink-0 mt-0.5"/><p className="text-[11px] leading-relaxed text-blue-800"><b>Aturan peminjaman:</b> katalog yang terlambat dan belum dikembalikan mengurangi <b>1 poin per hari</b> pada Kinerja PIC.</p></div>
             <button onClick={() => setIsAddingLoan(true)} className="shrink-0 bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm hover:bg-blue-700 flex items-center justify-center gap-1.5"><Plus size={16}/> Catat Pinjam</button>
           </div>
           <div className="space-y-3">
@@ -1429,6 +1451,7 @@ function PeminjamanKatalogView({ user, catalogItems, catalogLoans, handleAddActi
 function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCatalogTab, setActiveCatalogTab] = useState('katalog');
+  const [selectedBorrowCatalogId, setSelectedBorrowCatalogId] = useState('');
   const [activeFilter, setActiveFilter] = useState('Semua');
   const [sortOption, setSortOption] = useState('Terbaru Ditambah');
   const [isAddingData, setIsAddingData] = useState(false);
@@ -1498,6 +1521,11 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
     catch(err) { alert("Gagal menghapus data dari Database: " + err.message); setConfirmDelete(null); }
   };
 
+  const handleDirectBorrow = (catalogId) => {
+    setSelectedBorrowCatalogId(catalogId);
+    setActiveCatalogTab('peminjaman');
+  };
+
   let filteredItems = catalogItems.filter(item => {
     const matchSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) || item.source.toLowerCase().includes(searchQuery.toLowerCase());
     const matchFilter = activeFilter === 'Semua' || item.category === activeFilter;
@@ -1544,7 +1572,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
     );
   }
 
-  if (activeCatalogTab === 'peminjaman') return <PeminjamanKatalogView user={user} catalogItems={catalogItems} catalogLoans={catalogLoans} handleAddActivity={handleAddActivity} onShowCatalog={() => setActiveCatalogTab('katalog')} />;
+  if (activeCatalogTab === 'peminjaman') return <PeminjamanKatalogView user={user} catalogItems={catalogItems} catalogLoans={catalogLoans} handleAddActivity={handleAddActivity} onShowCatalog={() => setActiveCatalogTab('katalog')} defaultCatalogId={selectedBorrowCatalogId} />;
 
   return (
     <div className="space-y-5 animation-fade-in">
@@ -1554,7 +1582,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
       </div>
       <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
         <button className="px-3 py-2 rounded-lg text-xs font-bold bg-white text-blue-600 shadow-sm">Daftar Katalog</button>
-        <button onClick={() => setActiveCatalogTab('peminjaman')} className="px-3 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800">Pinjam Katalog <span className="ml-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] text-orange-700">{catalogLoans.filter(loan => !loan.returnedAt).length}</span></button>
+        <button onClick={() => { setSelectedBorrowCatalogId(''); setActiveCatalogTab('peminjaman'); }} className="px-3 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800">Pinjam Katalog <span className="ml-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] text-orange-700">{catalogLoans.filter(loan => !loan.returnedAt).length}</span></button>
       </div>
       <div className="flex gap-2">
         <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input type="text" placeholder="Cari..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
@@ -1567,6 +1595,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
         {filteredItems.length > 0 ? (
           filteredItems.map(item => {
             const hasWeb = item.webLink || item.link; const hasFile = item.fileLink;
+            const isBorrowed = catalogLoans.some(loan => loan.catalogId === item.id && !loan.returnedAt);
             return (
             <div key={item.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3 relative overflow-hidden group">
               <div className="flex justify-between items-start"><span className="text-[8px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-1 rounded-md">{item.category}</span>
@@ -1578,6 +1607,17 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
               <div className="flex gap-2 w-full pt-1">
                 <button onClick={() => hasWeb && window.open(hasWeb, '_blank')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all ${hasWeb ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 active:scale-95 cursor-pointer' : 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed'}`}>{hasWeb ? <><ExternalLink size={14} strokeWidth={2.5}/> Web / Referensi</> : <><AlertCircle size={14} strokeWidth={2.5}/> Web (N/A)</>}</button>
                 <button onClick={() => hasFile && window.open(hasFile, '_blank')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all ${hasFile ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 active:scale-95 cursor-pointer' : 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed'}`}>{hasFile ? <><FileText size={14} strokeWidth={2.5}/> File Digital</> : <><AlertCircle size={14} strokeWidth={2.5}/> File (N/A)</>}</button>
+              </div>
+              <div className="pt-1 border-t border-slate-100">
+                {isBorrowed ? (
+                  <button disabled className="w-full py-2 bg-orange-100 text-orange-700 text-xs font-bold rounded-xl cursor-not-allowed">
+                    Sedang Dipinjam
+                  </button>
+                ) : (
+                  <button onClick={() => handleDirectBorrow(item.id)} className="w-full py-2 bg-slate-800 hover:bg-blue-600 text-white text-xs font-bold rounded-xl transition-colors shadow-sm flex items-center justify-center gap-1.5">
+                    <FolderOpen size={14} /> Pinjam Katalog Ini
+                  </button>
+                )}
               </div>
             </div>
             );
@@ -1596,6 +1636,117 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ================= KOMPONEN FORMULIR / FILE MASTER (BARU) ================= */
+function FormulirView({ user, forms, handleAddActivity }) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [formData, setFormData] = useState({ title: '', desc: '', link: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSave = async () => {
+    if (!formData.title || !formData.link) return alert("Judul dan Link wajib diisi!");
+    setIsSubmitting(true);
+    try {
+      await addDoc(getCol('forms'), { 
+        ...formData, 
+        createdAt: new Date().toISOString(), 
+        addedBy: user.name 
+      });
+      handleAddActivity(`Menambahkan form/file "${formData.title}"`, 'FileText', 'text-blue-500', 'bg-blue-50');
+      setIsAdding(false);
+      setFormData({ title: '', desc: '', link: '' });
+    } catch (e) {
+      alert("Gagal menyimpan form: " + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id, title) => {
+    if (window.confirm(`Anda yakin ingin menghapus form "${title}"?`)) {
+      try {
+        await deleteDoc(getDoc('forms', id));
+        handleAddActivity(`Menghapus form "${title}"`, 'Trash2', 'text-red-500', 'bg-red-50');
+      } catch(e) {
+        alert("Gagal menghapus form: " + e.message);
+      }
+    }
+  };
+
+  return (
+    <div className="space-y-5 animation-fade-in">
+      <div className="flex justify-between items-end">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Form & File Master</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Pusat unduhan form dan template dokumen.</p>
+        </div>
+        {user.role === 'Admin' && (
+          <button onClick={() => setIsAdding(true)} className="bg-blue-600 text-white p-2 px-3 rounded-xl flex items-center gap-1 shadow-md hover:bg-blue-700 transition-colors">
+            <Plus size={16} /><span className="text-xs font-bold">Tambah Form</span>
+          </button>
+        )}
+      </div>
+
+      {isAdding && (
+        <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 space-y-4">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-bold text-slate-800">Tambah Link Form/File</h3>
+            <button onClick={() => setIsAdding(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">Judul Form / Dokumen</label>
+            <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Contoh: Form Cuti Karyawan / Template CAD" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">Link Download / Tautan G-Drive</label>
+            <input type="url" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} placeholder="https://..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">Keterangan / Instruksi</label>
+            <textarea rows="2" value={formData.desc} onChange={e => setFormData({...formData, desc: e.target.value})} placeholder="Penjelasan singkat mengenai fungsi file atau cara pengisian..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none resize-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <button disabled={isSubmitting} onClick={handleSave} className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl text-sm shadow-md hover:bg-blue-700 transition-all disabled:opacity-50">
+            {isSubmitting ? 'Menyimpan...' : 'Simpan Form'}
+          </button>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {forms.length === 0 ? (
+          <div className="text-center py-10 bg-white rounded-2xl border border-slate-200 shadow-sm">
+            <Download size={32} className="mx-auto text-slate-300 mb-2" />
+            <p className="text-sm font-bold text-slate-600">Belum ada form yang ditambahkan.</p>
+          </div>
+        ) : (
+          forms.map(form => (
+            <div key={form.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
+              <div className="flex items-start gap-3">
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-xl shrink-0"><FileText size={20} /></div>
+                <div>
+                  <h3 className="font-bold text-slate-800">{form.title}</h3>
+                  {form.desc && <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{form.desc}</p>}
+                  <p className="text-[9px] text-slate-400 mt-1.5 flex items-center gap-1">
+                    <User size={10}/> Ditambahkan oleh: {form.addedBy}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <a href={form.link.startsWith('http') ? form.link : `https://${form.link}`} target="_blank" rel="noopener noreferrer" className="bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 border border-slate-200 hover:border-blue-200">
+                  <Download size={14} /> Unduh / Buka
+                </a>
+                {user.role === 'Admin' && (
+                  <button onClick={() => handleDelete(form.id, form.title)} className="bg-red-50 text-red-500 p-2.5 rounded-xl hover:bg-red-100 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 border border-red-100" title="Hapus Form">
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
