@@ -119,7 +119,7 @@ const executePDFExport = async (elementId, fileName, gdriveFolder, progressCallb
      document.body.removeChild(link);
 
      progressCallback(80);
-     const response = await fetch(GOOGLE_SCRIPT_URL, {
+     const response = await fetch("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
@@ -588,7 +588,7 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
        let taskCategory = "Umum";
        const folderPathStr = `APP DKPM/Proyek ${taskYear}/${taskCategory}/${task.project}/09. SUBMISSION/Task Submit App`;
 
-       const response = await fetch(GOOGLE_SCRIPT_URL, {
+       const response = await fetch("/api/upload", {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify({
@@ -1162,7 +1162,7 @@ function SurveiView({ title, databaseProyek, handleAddActivity }) {
 
   try {
     // TAHAP 1: Buat Folder Utama Terlebih Dahulu (Tanpa Foto)
-    const responseFolder = await fetch(GOOGLE_SCRIPT_URL, {
+    const responseFolder = await fetch("/api/upload", {
       method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ 
         action: "createSurveyFoldersOnly", 
@@ -1187,7 +1187,7 @@ function SurveiView({ title, databaseProyek, handleAddActivity }) {
       for (let i = 0; i < totalPhotos; i++) {
         const base64Data = await fileToBase64(selectedFiles[i]);
         
-        await fetch(GOOGLE_SCRIPT_URL, {
+        await fetch("/api/upload", {
           method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify({ 
             action: "uploadSinglePhoto", 
@@ -1342,7 +1342,7 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
 
        if (actionType === 'cloud' || actionType === 'both') {
            setUploadProgress(85);
-           const response = await fetch(GOOGLE_SCRIPT_URL, {
+           const response = await fetch("/api/upload", {
               method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
               body: JSON.stringify({ action: "uploadCatalog", folderPath: gdriveFolder, fileName: namaFile, title: namaFile, fileData: { name: namaFile, mimeType: 'application/pdf', base64: base64Str } }),
             });
@@ -1612,7 +1612,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
         else if (selectedCatalogFile.name && selectedCatalogFile.name.trim() !== "") safeFileName = selectedCatalogFile.name;
 
         const safeMimeType = selectedCatalogFile.type || "application/pdf";
-        const response = await fetch(GOOGLE_SCRIPT_URL, {
+        const response = await fetch("/api/upload", {
           method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify({ action: "uploadCatalog", folderPath: "APP DKPM/Library Katalog", fileData: { name: safeFileName, mimeType: safeMimeType, base64: base64Data.base64 }, title: newData.title || "Katalog Baru", fileName: safeFileName, name: safeFileName }),
         });
