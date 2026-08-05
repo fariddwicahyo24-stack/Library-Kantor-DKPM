@@ -192,13 +192,50 @@ export default function App() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear().toString());
 
   useEffect(() => {
+    // 1. DAFTAR EMAIL TIM YANG DIZINKAN AKSES
+    const ALLOWED_EMAILS = [
+      "fariddwicahyo24@gmail.com",
+      "hardiansyahrizky386@gmail.com",
+      "kristiana.budi.h12@gmail.com",
+      "irvanranggapratama@gmail.com",
+      "fabiantjb@gmail.com",
+      "fajarriskyy@gmail.com"
+    ];
+
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
         try { await signInWithCustomToken(auth, __initial_auth_token); } catch(e){}
-      } else if (isCanvasEnv) {
-        try { await signInAnonymously(auth); } catch (e) {}
       }
     };
+    if(isCanvasEnv) initAuth();
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        const userEmail = currentUser.email ? currentUser.email.toLowerCase() : "";
+
+        // 2. CEK APAKAH EMAIL TERDAFTAR DI WHITELIST
+        if (ALLOWED_EMAILS.includes(userEmail)) {
+          const name = currentUser.displayName || 'Pengguna';
+          const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+          
+          // Set role Admin
+          const userRole = 'Admin'; 
+
+          setUser({ name, initials, uid: currentUser.uid, role: userRole, email: userEmail });
+        } else {
+          // Jika email tidak terdaftar, paksa logout dan tolak akses
+          await signOut(auth);
+          setUser(null);
+          alert(`Akses Ditolak: Akun (${userEmail}) tidak terdaftar dalam sistem. Silakan hubungi Administrator.`);
+        }
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
+
     if(isCanvasEnv) initAuth();
 
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
