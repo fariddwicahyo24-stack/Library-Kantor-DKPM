@@ -10,7 +10,10 @@ import {
 
 // === 1. FIREBASE CONFIGURATION & INITIALIZATION ===
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, signInWithCustomToken } from "firebase/auth";
+import { 
+  getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, 
+  signOut, signInWithCustomToken, signInAnonymously 
+} from "firebase/auth";
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, query } from "firebase/firestore";
 
 // Fallback configuration (Untuk Production/Local Anda)
@@ -211,6 +214,14 @@ export default function App() {
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
+        // Cek jika user Anonymous (Admin Preview di local/canvas)
+        if (currentUser.isAnonymous) {
+          const name = 'Admin Preview';
+          const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+          setUser({ name, initials, uid: currentUser.uid, role: 'Admin', email: currentUser.email || 'preview@local.app' });
+          return;
+        }
+
         const userEmail = currentUser.email ? currentUser.email.toLowerCase() : "";
 
         // 2. CEK APAKAH EMAIL TERDAFTAR DI WHITELIST
@@ -233,20 +244,6 @@ export default function App() {
       }
     });
 
-    return () => unsubscribeAuth();
-  }, []);
-
-    if(isCanvasEnv) initAuth();
-
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
-        const name = currentUser.isAnonymous ? 'Admin Preview' : (currentUser.displayName || 'Pengguna');
-        const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-        setUser({ name, initials, uid: currentUser.uid, role: 'Admin', email: currentUser.email || 'preview@local.app' });
-      } else {
-        setUser(null);
-      }
-    });
     return () => unsubscribeAuth();
   }, []);
 
