@@ -194,6 +194,7 @@ export default function App() {
 
   // === 1. HOOK AUTHENTICATION ===
   useEffect(() => {
+    // Daftar semua email tim yang diizinkan login ke aplikasi
     const ALLOWED_EMAILS = [
       "fariddwicahyo24@gmail.com",
       "hardiansyahrizky386@gmail.com",
@@ -212,6 +213,7 @@ export default function App() {
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
+        // Cek jika user Anonymous (Admin Preview di local/canvas)
         if (currentUser.isAnonymous) {
           const name = 'Admin Preview';
           const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
@@ -221,11 +223,18 @@ export default function App() {
 
         const userEmail = currentUser.email ? currentUser.email.toLowerCase() : "";
 
+        // Cek apakah email terdaftar di whitelist
         if (ALLOWED_EMAILS.includes(userEmail)) {
           const name = currentUser.displayName || 'Pengguna';
           const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-          setUser({ name, initials, uid: currentUser.uid, role: 'Admin', email: userEmail });
+          
+          // PENENTUAN HAK AKSES (ROLE)
+          // Jika emailnya farid, jadikan Admin. Jika bukan, jadikan Staff.
+          const userRole = (userEmail === "fariddwicahyo24@gmail.com") ? 'Admin' : 'Staff';
+
+          setUser({ name, initials, uid: currentUser.uid, role: userRole, email: userEmail });
         } else {
+          // Jika email tidak terdaftar, tolak akses
           await signOut(auth);
           setUser(null);
           alert(`Akses Ditolak: Akun (${userEmail}) tidak terdaftar dalam sistem. Silakan hubungi Administrator.`);
