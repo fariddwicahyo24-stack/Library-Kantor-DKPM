@@ -15,12 +15,13 @@ import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc
 
 // Fallback configuration (Untuk Production/Local Anda)
 const fallbackConfig = {
-  apiKey: "AIzaSyAI3p5VAxRKJLCV705TIgjeQGV2oWbIbpY",
-  authDomain: "prosync-app-dkpm.firebaseapp.com",
-  projectId: "prosync-app-dkpm",
-  storageBucket: "prosync-app-dkpm.firebasestorage.app",
-  messagingSenderId: "73598641866",
-  appId: "1:73598641866:web:4a24f9a2a9b1f895333633"
+  apiKey: "AIzaSyBP8X0JcszhoIO8Vcei-t-UcL79xYJk58s",
+  authDomain: "library-kantor-dkpm.firebaseapp.com",
+  projectId: "library-kantor-dkpm",
+  storageBucket: "library-kantor-dkpm.firebasestorage.app",
+  messagingSenderId: "307842167975",
+  appId: "1:307842167975:web:4cb9d85ed15452d8395782",
+  measurementId: "G-9T0S15CS54"
 };
 
 // Deteksi Environment: Gunakan config canvas jika ada, jika tidak gunakan fallback

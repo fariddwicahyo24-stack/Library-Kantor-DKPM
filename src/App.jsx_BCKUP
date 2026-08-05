@@ -87,7 +87,7 @@ const executePDFExport = async (elementId, fileName, gdriveFolder, progressCallb
     image:        { type: 'jpeg', quality: 1 },
     html2canvas:  { scale: 3, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
-    pagebreak:    { mode: ['avoid-all'] } // Perbaikan pagebreak menghindari potong gambar
+    pagebreak:    { mode: ['avoid-all'] }
   };
   
   try {
@@ -122,7 +122,7 @@ const executePDFExport = async (elementId, fileName, gdriveFolder, progressCallb
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
-          action: "uploadCatalog", // Memanfaatkan logic upload generic yang sudah ada
+          action: "uploadCatalog",
           folderPath: gdriveFolder,
           fileName: fileName,
           title: fileName,
@@ -186,10 +186,10 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [activities, setActivities] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
+  const [catalogLoans, setCatalogLoans] = useState([]);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear().toString());
 
   useEffect(() => {
-    // Custom logic untuk environment Immersive Canvas
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
         try { await signInWithCustomToken(auth, __initial_auth_token); } catch(e){}
@@ -228,8 +228,12 @@ export default function App() {
       const catData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setCatalogItems(catData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
     });
+    const unsubCatalogLoans = onSnapshot(query(getCol('catalogLoans')), (snapshot) => {
+      const loanData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCatalogLoans(loanData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
+    });
 
-    return () => { unsubProyek(); unsubTasks(); unsubActivities(); unsubKatalog(); };
+    return () => { unsubProyek(); unsubTasks(); unsubActivities(); unsubKatalog(); unsubCatalogLoans(); };
   }, [user]);
 
   // Auto Refresh system (setiap 30 menit) & Manual Sync
@@ -266,18 +270,41 @@ export default function App() {
   if (!user) return <LoginScreen />;
 
   return (
-    <div className="min-h-screen bg-slate-200 flex items-center justify-center p-4 font-sans text-slate-800">
+    <div className="min-h-[100dvh] bg-slate-100 font-sans text-slate-800">
       {/* GLOBAL STYLES UNTUK PDF A4 FIX */}
       <style>{`
         .pdf-page-break { break-inside: avoid; page-break-inside: avoid; }
+        html, body, #root { min-height: 100%; }
       `}</style>
       
-      <div className="w-full max-w-[390px] h-[844px] bg-slate-50 rounded-[3rem] shadow-2xl overflow-hidden border-[8px] border-slate-800 relative flex flex-col">
-        <div className="absolute top-0 inset-x-0 h-6 flex justify-center z-50"><div className="w-32 h-6 bg-slate-800 rounded-b-2xl"></div></div>
+      <div className="h-[100dvh] w-full bg-slate-50 flex flex-col md:flex-row">
+        <aside className="hidden md:flex md:w-64 lg:w-72 shrink-0 flex-col bg-slate-900 text-slate-200 p-5 lg:p-6">
+          <div className="flex items-center gap-3 px-3 pb-8 border-b border-slate-700/70">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-950/30"><FolderOpen size={22} /></div>
+            <div><h1 className="text-lg font-black text-white">ProSync</h1><p className="text-[10px] font-medium text-slate-400">Production Database</p></div>
+          </div>
+          <nav className="flex-1 pt-6 space-y-2" aria-label="Navigasi utama">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/20' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                  <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                  <span className="text-sm font-bold">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+          <div className="mt-6 rounded-2xl bg-slate-800/80 p-4 border border-slate-700/70">
+            <p className="text-xs font-bold text-white">{user.name}</p>
+            <p className="text-[10px] text-slate-400 mt-1">{user.role}</p>
+          </div>
+        </aside>
         
-        <header className="bg-white px-5 pt-10 pb-3 border-b border-slate-200 z-20 shadow-sm sticky top-0 relative">
+        <div className="flex min-w-0 flex-1 flex-col min-h-0">
+        <header className="bg-white px-4 pt-4 pb-3 border-b border-slate-200 z-20 shadow-sm sticky top-0 relative md:px-8 md:pt-6 lg:px-10">
           <div className="flex justify-between items-center mb-1">
-            <h1 className="text-xl font-bold text-blue-600 flex items-center gap-2"><FolderOpen size={24} /> ProSync</h1>
+            <h1 className="text-xl font-bold text-blue-600 flex items-center gap-2"><FolderOpen size={24} /> ProSync <span className="hidden sm:inline text-sm font-medium text-slate-400">/ Workspace</span></h1>
             <div className="flex items-center gap-3">
               <button onClick={handleManualSync} className={`text-slate-400 hover:text-blue-600 transition-colors ${isSyncing ? 'animate-spin text-blue-500' : ''}`} title="Sinkronisasi Data">
                 <RefreshCw size={20} />
@@ -294,7 +321,7 @@ export default function App() {
           </div>
 
           {showNotif && (
-            <div className="absolute top-[85px] left-4 right-4 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 animation-fade-in">
+            <div className="absolute top-[76px] left-4 right-4 md:left-auto md:right-8 md:w-[360px] bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 animation-fade-in">
               <h3 className="font-bold text-slate-800 mb-3 text-sm flex items-center gap-2">
                 <Bell size={16} /> Pusat Notifikasi
               </h3>
@@ -311,16 +338,16 @@ export default function App() {
           )}
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 pb-24 no-scrollbar" onClick={() => showNotif && setShowNotif(false)}>
+        <main className="flex-1 min-h-0 overflow-y-auto p-4 no-scrollbar md:p-8 lg:p-10" onClick={() => showNotif && setShowNotif(false)}>
           {activeTab === 'beranda' && <BerandaView userName={user.name} tasks={tasks} activities={activities} />}
           {activeTab === 'tugas' && <TugasView databaseProyek={databaseProyek} user={user} tasks={tasks} handleAddActivity={handleAddActivity} currentYear={currentYear} />}
           {activeTab === 'survei' && <SurveiView title="Survei & Setup Proyek" databaseProyek={databaseProyek} handleAddActivity={handleAddActivity} />}
           {activeTab === 'progres' && <ProgresPPTView title="Laporan Progres" databaseProyek={databaseProyek} handleAddActivity={handleAddActivity} />}
-          {activeTab === 'katalog' && <KatalogView user={user} catalogItems={catalogItems} handleAddActivity={handleAddActivity} />}
-          {activeTab === 'kinerja' && <KinerjaView tasks={tasks} currentYear={currentYear} handleAddActivity={handleAddActivity} />}
+          {activeTab === 'katalog' && <KatalogView user={user} catalogItems={catalogItems} catalogLoans={catalogLoans} handleAddActivity={handleAddActivity} />}
+          {activeTab === 'kinerja' && <KinerjaView tasks={tasks} catalogLoans={catalogLoans} currentYear={currentYear} handleAddActivity={handleAddActivity} />}
         </main>
 
-        <nav className="absolute bottom-0 w-full bg-white border-t border-slate-200 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] z-30 pb-5 pt-1 rounded-b-[2.5rem]">
+        <nav className="md:hidden shrink-0 w-full bg-white border-t border-slate-200 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] z-30 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1">
           <div className="flex justify-around items-center px-1">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -334,6 +361,7 @@ export default function App() {
             })}
           </div>
         </nav>
+        </div>
       </div>
     </div>
   );
@@ -341,7 +369,6 @@ export default function App() {
 
 /* ================= KOMPONEN HALAMAN BERANDA ================= */
 function BerandaView({ userName, tasks, activities }) {
-  // Hanya hitung tugas yang belum dihapus
   const activeTasksCount = tasks.filter(t => t.status !== 'Done' && !t.isDeleted).length;
   const deadlineTasksCount = tasks.filter(t => {
     if (t.status === 'Done' || t.isDeleted) return false;
@@ -403,13 +430,11 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
   const [isExporting, setIsExporting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Modal Bukti Selesai & Delete
   const [proofModal, setProofModal] = useState({ isOpen: false, task: null });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const proofFileInput = useRef(null);
   const [selectedProof, setSelectedProof] = useState(null);
 
-  // Daftar nama PIC yang unik dari database tugas (Autocomplete)
   const uniquePICs = [...new Set(tasks.map(t => t.picName).filter(name => name && name.trim() !== ""))];
   
   const [newTask, setNewTask] = useState({ title: '', project: '', date: '', time: '', location: '', picName: '', picContact: '', desc: '' });
@@ -448,7 +473,6 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
 
   const handleStatusChange = async (task, newStatus) => {
     if (newStatus === 'Done') {
-      // Buka Modal Upload Bukti jika akan diselesaikan
       setProofModal({ isOpen: true, task });
     } else {
       try { 
@@ -458,7 +482,6 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
     }
   };
 
-  // Proses Submit Bukti Foto
   const handleUploadProof = async () => {
     if (!selectedProof) return alert("Pilih foto screenshot tugas terlebih dahulu!");
     setIsSubmitting(true);
@@ -470,16 +493,15 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
        setUploadProgress(50);
        
        const safeFileName = `Submit_Tugas_${task.picName}_${new Date().getTime()}.jpg`;
-       // Folder Submission Standar
        let taskYear = new Date(task.date).getFullYear().toString();
-       let taskCategory = "Umum"; // Default fallback
+       let taskCategory = "Umum";
        const folderPathStr = `APP DKPM/Proyek ${taskYear}/${taskCategory}/${task.project}/09. SUBMISSION/Task Submit App`;
 
        const response = await fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify({
-            action: "uploadCatalog", // Menggunakan logic upload yang sama
+            action: "uploadCatalog",
             folderPath: folderPathStr,
             fileData: { name: safeFileName, mimeType: base64Data.mimeType, base64: base64Data.base64 },
             title: `Bukti Tugas ${task.title}`,
@@ -518,11 +540,9 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
     }
   };
 
-  // Proses Soft Delete Task
   const executeDeleteTask = async () => {
     if(!deleteConfirm) return;
     try {
-      // SOFT DELETE: isDeleted = true, tidak dihapus permanen agar tetap masuk poin Kinerja
       await updateDoc(getDoc('tasks', deleteConfirm.id), { isDeleted: true });
       handleAddActivity(`Admin menghapus (arsip) tugas "${deleteConfirm.title}"`, 'Trash2', 'text-red-500', 'bg-red-50');
       setDeleteConfirm(null);
@@ -531,8 +551,6 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
     }
   };
 
-
-  // Filter Tasks (Hilangkan yang Soft Deleted)
   const yearlyTasks = tasks.filter(task => {
     if(!task.date || task.isDeleted) return false;
     const taskYear = new Date(task.date).getFullYear().toString();
@@ -697,7 +715,6 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
                   <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-[9px]">{task.picName.substring(0,2).toUpperCase()}</div>
                   <span className="text-xs font-bold text-slate-700">{task.picName}</span>
                 </div>
-                {/* TAMPILKAN TOMBOL LINK BUKTI JIKA SUDAH ADA */}
                 {task.proofUrl && (
                   <button onClick={() => window.open(task.proofUrl, '_blank')} className="flex items-center gap-1 text-[9px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 transition-colors shadow-sm">
                     <LinkIcon size={10} /> Cek Bukti Kerja
@@ -709,7 +726,6 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
         )}
       </div>
 
-      {/* MODAL UPLOAD BUKTI FOTO (TUGAS SELESAI) */}
       {proofModal.isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animation-fade-in">
           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative">
@@ -738,7 +754,6 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
         </div>
       )}
 
-      {/* POP-UP KONFIRMASI HAPUS TUGAS (SOFT DELETE) */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animation-fade-in">
           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative">
@@ -781,27 +796,37 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
   );
 }
 
-/* ================= KOMPONEN KINERJA VIEW (MEMASUKKAN SEMUA TUGAS, TERMASUK YG DIHAPUS) ================= */
-function KinerjaView({ tasks, currentYear, handleAddActivity }) {
+/* ================= KOMPONEN KINERJA VIEW (PENALTI KATALOG -1 POINT PER HARI) ================= */
+function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [isExporting, setIsExporting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // KINERJA MENGHITUNG SELURUH TUGAS (Walau di-Soft Delete / isDeleted = true)
   const yearlyTasksForKinerja = tasks.filter(task => {
     if(!task.date) return false;
     return new Date(task.date).getFullYear().toString() === selectedYear;
   });
+  const overdueCatalogLoans = catalogLoans.filter(loan => {
+    if (!loan.dueDate || loan.returnedAt) return false;
+    const dueDate = new Date(`${loan.dueDate}T${loan.dueTime || '23:59'}:00`);
+    return dueDate < new Date() && new Date(loan.dueDate).getFullYear().toString() === selectedYear;
+  });
 
   const calculateKinerja = () => {
     const stats = {};
+    const ensurePic = (name) => {
+      const pic = name?.trim();
+      if (!pic) return null;
+      if (!stats[pic]) stats[pic] = { name: pic, score: 100, onTime: 0, late: 0, activeLate: 0, tasksList: [], overdueLoans: [], totalCatalogPenaltyDays: 0 };
+      return pic;
+    };
     yearlyTasksForKinerja.forEach(task => {
-      if (!task.picName || task.picName.trim() === "") return;
-      const pic = task.picName.trim();
-      if (!stats[pic]) {
-        stats[pic] = { name: pic, score: 100, onTime: 0, late: 0, activeLate: 0, tasksList: [] };
-      }
-      stats[pic].tasksList.push(task);
+      const pic = ensurePic(task.picName);
+      if (pic) stats[pic].tasksList.push(task);
+    });
+    overdueCatalogLoans.forEach(loan => {
+      const pic = ensurePic(loan.picName);
+      if (pic) stats[pic].overdueLoans.push(loan);
     });
 
     const today = new Date();
@@ -823,11 +848,11 @@ function KinerjaView({ tasks, currentYear, handleAddActivity }) {
           deadline.setHours(0,0,0,0);
 
           if (doneDate <= deadline) {
-            currentScore = Math.min(100, currentScore + 1); // Tambah point max 100
+            currentScore = Math.min(100, currentScore + 1);
             onTimeCount++;
           } else {
             const diffDays = Math.ceil(Math.abs(doneDate - deadline) / (1000 * 60 * 60 * 24));
-            currentScore -= diffDays; // Kurang point per hari telat
+            currentScore -= diffDays;
             lateCount++;
           }
         } else {
@@ -838,10 +863,26 @@ function KinerjaView({ tasks, currentYear, handleAddActivity }) {
           }
         }
       });
+
+      // Perhitungan Penalti Katalog -1 Poin per hari keterlambatan
+      let totalCatalogPenalty = 0;
+      const nowTime = new Date();
+      stats[pic].overdueLoans.forEach(loan => {
+        if(loan.dueDate) {
+          const dueDateObj = new Date(`${loan.dueDate}T${loan.dueTime || '23:59'}:00`);
+          if(nowTime > dueDateObj) {
+             const diffDays = Math.ceil(Math.abs(nowTime - dueDateObj) / (1000 * 60 * 60 * 24));
+             totalCatalogPenalty += diffDays;
+          }
+        }
+      });
+
+      currentScore -= totalCatalogPenalty;
       stats[pic].score = currentScore;
       stats[pic].onTime = onTimeCount;
       stats[pic].late = lateCount;
       stats[pic].activeLate = activeLateCount;
+      stats[pic].totalCatalogPenaltyDays = totalCatalogPenalty;
     });
 
     return Object.values(stats).sort((a, b) => b.score - a.score);
@@ -887,7 +928,7 @@ function KinerjaView({ tasks, currentYear, handleAddActivity }) {
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3 flex gap-3">
         <AlertTriangle size={16} className="text-blue-500 shrink-0 mt-0.5" />
         <p className="text-[10px] text-blue-800 leading-relaxed font-medium">
-          <b>Aturan Main:</b> Setiap orang start 100 poin tiap awal tahun. Terlambat -1 poin/hari. Submit tepat/awal waktu +1 poin (Maks 100). *Tugas yang di-hapus (Soft Delete) tetap masuk hitungan skor.
+          <b>Aturan Main:</b> Setiap orang start 100 poin tiap awal tahun. Terlambat tugas -1 poin/hari. Submit tepat/awal waktu +1 poin (maks. 100). Katalog yang belum dikembalikan setelah jatuh tempo mengurangi <b>1 poin per hari</b>. *Tugas yang dihapus tetap masuk hitungan skor.
         </p>
       </div>
 
@@ -912,7 +953,7 @@ function KinerjaView({ tasks, currentYear, handleAddActivity }) {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-bold text-slate-800 text-base leading-tight">{emp.name}</h3>
-                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">Tugas Selesai: {emp.onTime + emp.late} / {emp.tasksList.length}</p>
+                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">Tugas Selesai: {emp.onTime + emp.late} / {emp.tasksList.length} · Pinjaman telat: {emp.overdueLoans.length} (-{emp.totalCatalogPenaltyDays} hari)</p>
                   </div>
                   <div className={`px-3 py-1.5 rounded-xl border flex flex-col items-center justify-center min-w-[65px] ${colorTheme}`}>
                      <span className="text-lg font-black leading-none">{emp.score}</span><span className="text-[8px] font-bold uppercase tracking-wider mt-0.5">Point</span>
@@ -921,10 +962,11 @@ function KinerjaView({ tasks, currentYear, handleAddActivity }) {
 
                 <div className="w-full bg-slate-100 rounded-full h-1.5 mt-4 overflow-hidden"><div className={`h-1.5 rounded-full ${barColor} transition-all duration-500`} style={{ width: `${Math.max(0, Math.min(100, emp.score))}%` }}></div></div>
 
-                <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-100">
+                <div className="grid grid-cols-4 gap-2 mt-4 pt-3 border-t border-slate-100">
                   <div className="flex flex-col items-center"><span className="flex items-center gap-1 text-[10px] font-bold text-green-600"><CheckCircle2 size={10}/> On Time</span><span className="text-sm font-black text-slate-700 mt-0.5">{emp.onTime}</span></div>
                   <div className="flex flex-col items-center border-x border-slate-100"><span className="flex items-center gap-1 text-[10px] font-bold text-orange-500"><TrendingDown size={10}/> Telat Selesai</span><span className="text-sm font-black text-slate-700 mt-0.5">{emp.late}</span></div>
                   <div className="flex flex-col items-center"><span className="flex items-center gap-1 text-[10px] font-bold text-red-500"><Clock size={10}/> Sedang Telat</span><span className="text-sm font-black text-slate-700 mt-0.5">{emp.activeLate}</span></div>
+                  <div className="flex flex-col items-center border-l border-slate-100"><span className="flex items-center gap-1 text-[10px] font-bold text-red-500"><FolderOpen size={10}/> Penalti Katalog</span><span className="text-sm font-black text-slate-700 mt-0.5">-{emp.totalCatalogPenaltyDays} Pts</span></div>
                 </div>
               </div>
             );
@@ -959,7 +1001,8 @@ function KinerjaView({ tasks, currentYear, handleAddActivity }) {
                  <h2 style={{ margin: 0, fontSize: '18px', color: '#1e293b', fontWeight: '900' }}>#{idx+1} {emp.name}</h2>
                  <div style={{ fontSize: '14px', fontWeight: 'bold' }}><span style={{ color: emp.score >= 90 ? '#16a34a' : emp.score >= 75 ? '#ea580c' : '#dc2626' }}>Skor Akhir: {emp.score} Poin</span></div>
               </div>
-              <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#64748b' }}>Ringkasan: {emp.onTime} Tepat Waktu | {emp.late} Terlambat | {emp.activeLate} Belum Selesai (Lewat Deadline)</p>
+              <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#64748b' }}>Ringkasan: {emp.onTime} Tepat Waktu | {emp.late} Terlambat | {emp.activeLate} Belum Selesai (Lewat Deadline) | {emp.overdueLoans.length} Katalog Belum Kembali (-{emp.totalCatalogPenaltyDays} Poin)</p>
+              {emp.overdueLoans.length > 0 && <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: '#dc2626', fontWeight: 'bold' }}>Katalog terlambat: {emp.overdueLoans.map(loan => loan.catalogTitle).join(', ')}</p>}
               
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
                 <thead>
@@ -1298,8 +1341,102 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
 }
 
 /* ================= KOMPONEN KATALOG ================= */
-function KatalogView({ user, catalogItems, handleAddActivity }) {
+function PeminjamanKatalogView({ user, catalogItems, catalogLoans, handleAddActivity, onShowCatalog, defaultCatalogId = '' }) {
+  const today = new Date().toISOString().split('T')[0];
+  const [isAddingLoan, setIsAddingLoan] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newLoan, setNewLoan] = useState({ catalogId: defaultCatalogId, picName: '', borrowDate: today, borrowTime: '09:00', dueDate: '', dueTime: '17:00', note: '' });
+  const activeLoans = catalogLoans.filter(loan => !loan.returnedAt);
+  const catalogOnLoanIds = new Set(activeLoans.map(loan => loan.catalogId));
+  const availableCatalogs = catalogItems.filter(item => !catalogOnLoanIds.has(item.id));
+  const isOverdue = (loan) => !loan.returnedAt && loan.dueDate && new Date(`${loan.dueDate}T${loan.dueTime || '23:59'}:00`) < new Date();
+
+  useEffect(() => {
+    if (defaultCatalogId) {
+      setNewLoan(prev => ({ ...prev, catalogId: defaultCatalogId }));
+      setIsAddingLoan(true);
+    }
+  }, [defaultCatalogId]);
+
+  const resetLoanForm = () => {
+    setNewLoan({ catalogId: '', picName: '', borrowDate: today, borrowTime: '09:00', dueDate: '', dueTime: '17:00', note: '' });
+    setIsAddingLoan(false);
+  };
+
+  const handleSaveLoan = async () => {
+    const catalog = catalogItems.find(item => item.id === newLoan.catalogId);
+    if (!catalog || !newLoan.picName.trim() || !newLoan.borrowDate || !newLoan.dueDate) return alert('Pilih katalog, isi PIC, tanggal pinjam, dan tanggal kembali.');
+    if (newLoan.dueDate < newLoan.borrowDate || (newLoan.dueDate === newLoan.borrowDate && newLoan.dueTime <= newLoan.borrowTime)) return alert('Waktu pengembalian harus setelah waktu peminjaman.');
+    setIsSubmitting(true);
+    try {
+      await addDoc(getCol('catalogLoans'), {
+        catalogId: catalog.id, catalogTitle: catalog.title, catalogCategory: catalog.category || '', picName: newLoan.picName.trim(),
+        borrowDate: newLoan.borrowDate, borrowTime: newLoan.borrowTime, dueDate: newLoan.dueDate, dueTime: newLoan.dueTime, note: newLoan.note.trim(), status: 'Dipinjam',
+        createdBy: user.name, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+      });
+      handleAddActivity(`Mencatat peminjaman katalog "${catalog.title}" oleh ${newLoan.picName.trim()}`, 'FolderOpen', 'text-orange-500', 'bg-orange-50');
+      resetLoanForm();
+    } catch (error) { console.error(error); alert('Gagal mencatat peminjaman: ' + error.message); }
+    finally { setIsSubmitting(false); }
+  };
+
+  const handleReturnLoan = async (loan) => {
+    try {
+      const returnedAt = new Date().toISOString();
+      await updateDoc(getDoc('catalogLoans', loan.id), { status: 'Dikembalikan', returnedAt, returnedBy: user.name, updatedAt: returnedAt });
+      handleAddActivity(`Katalog "${loan.catalogTitle}" dikembalikan oleh ${loan.picName}`, 'CheckCircle2', 'text-green-500', 'bg-green-50');
+    } catch (error) { console.error(error); alert('Gagal memperbarui status pengembalian: ' + error.message); }
+  };
+
+  return (
+    <div className="space-y-5 animation-fade-in">
+      <div>
+        <h2 className="text-xl font-bold text-slate-800">Daftar Katalog</h2>
+        <p className="text-xs font-medium text-slate-500 mt-1">Kelola data katalog dan peminjamannya</p>
+      </div>
+      <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <button onClick={onShowCatalog} className="px-3 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800">Daftar Katalog</button>
+        <button className="px-3 py-2 rounded-lg text-xs font-bold bg-white text-blue-600 shadow-sm">Pinjam Katalog <span className="ml-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] text-orange-700">{activeLoans.length}</span></button>
+      </div>
+
+      {isAddingLoan ? (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 space-y-5">
+          <div className="flex items-center justify-between"><div><h3 className="font-bold text-slate-800">Catat Peminjaman Katalog</h3><p className="text-[10px] text-slate-500 mt-1">PIC bertanggung jawab sampai katalog dikembalikan.</p></div><button onClick={resetLoanForm} className="text-slate-400 hover:text-slate-700"><X size={20}/></button></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Katalog yang dipinjam</label><select value={newLoan.catalogId} onChange={e => setNewLoan({ ...newLoan, catalogId: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"><option value="">Pilih katalog tersedia</option>{availableCatalogs.map(item => <option key={item.id} value={item.id}>{item.title} — {item.category}</option>)}</select>{availableCatalogs.length === 0 && <p className="text-[10px] text-orange-600 mt-1.5">Semua katalog sedang dipinjam atau belum ada katalog.</p>}</div>
+            <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">PIC peminjam</label><div className="relative"><User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={newLoan.picName} onChange={e => setNewLoan({ ...newLoan, picName: e.target.value })} placeholder="Nama PIC yang bertanggung jawab" className="w-full pl-9 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div></div>
+            <div className="grid grid-cols-2 gap-2"><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tanggal pinjam</label><input type="date" value={newLoan.borrowDate} onChange={e => setNewLoan({ ...newLoan, borrowDate: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Jam pinjam</label><input type="time" value={newLoan.borrowTime} onChange={e => setNewLoan({ ...newLoan, borrowTime: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div></div>
+            <div className="grid grid-cols-2 gap-2"><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tanggal kembali</label><input type="date" value={newLoan.dueDate} onChange={e => setNewLoan({ ...newLoan, dueDate: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Jam kembali</label><input type="time" value={newLoan.dueTime} onChange={e => setNewLoan({ ...newLoan, dueTime: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div></div>
+            <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Keterangan <span className="normal-case font-medium">(opsional)</span></label><textarea rows="3" value={newLoan.note} onChange={e => setNewLoan({ ...newLoan, note: e.target.value })} placeholder="Contoh: keperluan presentasi klien" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none resize-none focus:ring-2 focus:ring-blue-500" /></div>
+          </div>
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100"><button disabled={isSubmitting} onClick={resetLoanForm} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50">Batal</button><button disabled={isSubmitting} onClick={handleSaveLoan} className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm disabled:opacity-50">{isSubmitting ? 'Menyimpan...' : 'Simpan Peminjaman'}</button></div>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-blue-50 border border-blue-100 rounded-2xl p-4">
+            <div className="flex gap-3"><AlertTriangle size={18} className="text-blue-600 shrink-0 mt-0.5"/><p className="text-[11px] leading-relaxed text-blue-800"><b>Aturan peminjaman:</b> katalog yang terlambat dan belum dikembalikan mengurangi <b>1 poin per hari</b> pada Kinerja PIC.</p></div>
+            <button onClick={() => setIsAddingLoan(true)} className="shrink-0 bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm hover:bg-blue-700 flex items-center justify-center gap-1.5"><Plus size={16}/> Catat Pinjam</button>
+          </div>
+          <div className="space-y-3">
+            {catalogLoans.length === 0 ? <div className="text-center py-10 bg-white rounded-2xl border border-slate-200 shadow-sm"><FolderOpen size={32} className="mx-auto text-slate-300 mb-2"/><p className="text-sm font-bold text-slate-600">Belum ada peminjaman</p><p className="text-xs text-slate-400 mt-1">Catat peminjaman katalog pertama Anda.</p></div> : catalogLoans.map(loan => {
+              const overdue = isOverdue(loan);
+              return <div key={loan.id} className={`bg-white rounded-2xl border p-4 shadow-sm ${overdue ? 'border-red-200' : 'border-slate-200'}`}>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2 mb-1"><h3 className="font-bold text-slate-800">{loan.catalogTitle}</h3><span className={`text-[9px] font-bold px-2 py-1 rounded-full ${loan.returnedAt ? 'bg-green-100 text-green-700' : overdue ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>{loan.returnedAt ? 'Dikembalikan' : overdue ? 'Terlambat' : 'Dipinjam'}</span></div><p className="text-xs text-slate-500 flex items-center gap-1.5"><User size={13}/> PIC: <b className="text-slate-700">{loan.picName}</b></p></div>{!loan.returnedAt && <button onClick={() => handleReturnLoan(loan)} className="shrink-0 bg-green-600 text-white px-3 py-2 rounded-xl text-xs font-bold hover:bg-green-700 flex items-center justify-center gap-1.5"><CheckCircle2 size={15}/> Tandai Dikembalikan</button>}</div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 pt-3 border-t border-slate-100 text-[10px]"><div><p className="font-bold text-slate-400 uppercase">Waktu pinjam</p><p className="font-semibold text-slate-700 mt-1">{loan.borrowDate} · {loan.borrowTime || '-'}</p></div><div><p className="font-bold text-slate-400 uppercase">Batas kembali</p><p className={`font-semibold mt-1 ${overdue ? 'text-red-600' : 'text-slate-700'}`}>{loan.dueDate} · {loan.dueTime || '-'}</p></div><div><p className="font-bold text-slate-400 uppercase">Pengembalian</p><p className="font-semibold text-slate-700 mt-1">{loan.returnedAt ? new Date(loan.returnedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : 'Belum dikembalikan'}</p></div></div>
+                {loan.note && <p className="mt-3 text-[11px] italic text-slate-500 bg-slate-50 border border-slate-100 rounded-lg p-2.5">“{loan.note}”</p>}
+              </div>;
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeCatalogTab, setActiveCatalogTab] = useState('katalog');
+  const [selectedBorrowCatalogId, setSelectedBorrowCatalogId] = useState('');
   const [activeFilter, setActiveFilter] = useState('Semua');
   const [sortOption, setSortOption] = useState('Terbaru Ditambah');
   const [isAddingData, setIsAddingData] = useState(false);
@@ -1369,6 +1506,11 @@ function KatalogView({ user, catalogItems, handleAddActivity }) {
     catch(err) { alert("Gagal menghapus data dari Database: " + err.message); setConfirmDelete(null); }
   };
 
+  const handleDirectBorrow = (catalogId) => {
+    setSelectedBorrowCatalogId(catalogId);
+    setActiveCatalogTab('peminjaman');
+  };
+
   let filteredItems = catalogItems.filter(item => {
     const matchSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) || item.source.toLowerCase().includes(searchQuery.toLowerCase());
     const matchFilter = activeFilter === 'Semua' || item.category === activeFilter;
@@ -1415,11 +1557,17 @@ function KatalogView({ user, catalogItems, handleAddActivity }) {
     );
   }
 
+  if (activeCatalogTab === 'peminjaman') return <PeminjamanKatalogView user={user} catalogItems={catalogItems} catalogLoans={catalogLoans} handleAddActivity={handleAddActivity} onShowCatalog={() => setActiveCatalogTab('katalog')} defaultCatalogId={selectedBorrowCatalogId} />;
+
   return (
     <div className="space-y-5 animation-fade-in">
       <div className="flex justify-between items-start">
         <div><h2 className="text-xl font-bold text-slate-800">Daftar Katalog</h2><p className="text-xs font-medium text-slate-500 mt-1">Tersinkronisasi dengan Database</p></div>
         <div className="flex gap-2"><button onClick={() => { setNewData({title: '', date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: ''}); setEditingCatalogId(null); setIsAddingData(true); }} className="bg-blue-600 text-white px-3 py-2.5 rounded-xl shadow-sm flex items-center gap-1.5 hover:bg-blue-700 active:scale-95 transition-all"><Plus size={16} strokeWidth={3} /><span className="text-xs font-bold pr-1">Tambah</span></button></div>
+      </div>
+      <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <button className="px-3 py-2 rounded-lg text-xs font-bold bg-white text-blue-600 shadow-sm">Daftar Katalog</button>
+        <button onClick={() => { setSelectedBorrowCatalogId(''); setActiveCatalogTab('peminjaman'); }} className="px-3 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800">Pinjam Katalog <span className="ml-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] text-orange-700">{catalogLoans.filter(loan => !loan.returnedAt).length}</span></button>
       </div>
       <div className="flex gap-2">
         <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input type="text" placeholder="Cari..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
@@ -1432,6 +1580,7 @@ function KatalogView({ user, catalogItems, handleAddActivity }) {
         {filteredItems.length > 0 ? (
           filteredItems.map(item => {
             const hasWeb = item.webLink || item.link; const hasFile = item.fileLink;
+            const isBorrowed = catalogLoans.some(loan => loan.catalogId === item.id && !loan.returnedAt);
             return (
             <div key={item.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3 relative overflow-hidden group">
               <div className="flex justify-between items-start"><span className="text-[8px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-1 rounded-md">{item.category}</span>
@@ -1443,6 +1592,17 @@ function KatalogView({ user, catalogItems, handleAddActivity }) {
               <div className="flex gap-2 w-full pt-1">
                 <button onClick={() => hasWeb && window.open(hasWeb, '_blank')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all ${hasWeb ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 active:scale-95 cursor-pointer' : 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed'}`}>{hasWeb ? <><ExternalLink size={14} strokeWidth={2.5}/> Web / Referensi</> : <><AlertCircle size={14} strokeWidth={2.5}/> Web (N/A)</>}</button>
                 <button onClick={() => hasFile && window.open(hasFile, '_blank')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all ${hasFile ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 active:scale-95 cursor-pointer' : 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed'}`}>{hasFile ? <><FileText size={14} strokeWidth={2.5}/> File Digital</> : <><AlertCircle size={14} strokeWidth={2.5}/> File (N/A)</>}</button>
+              </div>
+              <div className="pt-1 border-t border-slate-100">
+                {isBorrowed ? (
+                  <button disabled className="w-full py-2 bg-orange-100 text-orange-700 text-xs font-bold rounded-xl cursor-not-allowed">
+                    Sedang Dipinjam
+                  </button>
+                ) : (
+                  <button onClick={() => handleDirectBorrow(item.id)} className="w-full py-2 bg-slate-800 hover:bg-blue-600 text-white text-xs font-bold rounded-xl transition-colors shadow-sm flex items-center justify-center gap-1.5">
+                    <FolderOpen size={14} /> Pinjam Katalog Ini
+                  </button>
+                )}
               </div>
             </div>
             );
@@ -1484,15 +1644,14 @@ function LoginScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-800 flex items-center justify-center p-4 font-sans relative overflow-hidden">
+    <div className="min-h-[100dvh] bg-slate-800 flex items-center justify-center p-0 sm:p-6 lg:p-10 font-sans relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-blue-500 rounded-full blur-3xl opacity-20"></div>
-      <div className="w-full max-w-[390px] h-[844px] bg-white rounded-[3rem] shadow-2xl overflow-hidden border-[8px] border-slate-700 flex flex-col relative z-10">
-        <div className="absolute top-0 inset-x-0 h-6 flex justify-center z-50"><div className="w-32 h-6 bg-slate-700 rounded-b-2xl"></div></div>
-        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+      <div className="w-full min-h-[100dvh] sm:min-h-[680px] max-w-6xl bg-white shadow-2xl overflow-hidden sm:rounded-3xl flex flex-col relative z-10">
+        <div className="flex-1 flex flex-col items-center justify-center p-8 sm:p-12 text-center">
           <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm rotate-3"><FolderOpen size={40} strokeWidth={2.5} /></div>
           <h1 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">ProSync</h1>
           <p className="text-sm text-slate-500 mb-12 font-medium">Production Database (Live)</p>
-          <div className="w-full bg-slate-50 p-6 rounded-3xl border border-slate-100">
+          <div className="w-full max-w-md bg-slate-50 p-6 rounded-3xl border border-slate-100">
             <h2 className="text-sm font-bold text-slate-700 mb-4">Akses Terbatas</h2>
             <p className="text-xs text-slate-500 mb-6">Silakan login menggunakan akun Google perusahaan Anda untuk melanjutkan.</p>
             <button onClick={handleGoogleLogin} className="w-full bg-white border border-slate-200 text-slate-700 font-bold py-3.5 rounded-xl shadow-sm hover:bg-slate-50 active:scale-95 transition-all flex items-center justify-center gap-3">
