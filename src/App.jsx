@@ -10,7 +10,7 @@ import {
 
 // === 1. FIREBASE CONFIGURATION & INITIALIZATION ===
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, signInAnonymously, signInWithCustomToken } from "firebase/auth";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, signInWithCustomToken } from "firebase/auth";
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, query } from "firebase/firestore";
 
 // Fallback configuration (Untuk Production/Local Anda)
