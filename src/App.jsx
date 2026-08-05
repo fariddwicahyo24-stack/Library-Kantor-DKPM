@@ -1156,25 +1156,72 @@ function SurveiView({ title, databaseProyek, handleAddActivity }) {
   const handleRemovePhoto = (index) => { setSelectedFiles(prev => prev.filter((_, i) => i !== index)); setPhotoPreviews(prev => prev.filter((_, i) => i !== index)); };
 
   const handleSaveData = async () => {
-    if (!judulProyek) return alert("Pilih atau ketik Judul Proyek terlebih dahulu!");
-    setIsSubmitting(true); setUploadProgress(10);
-    try {
-      let base64Photos = [];
-      if (selectedFiles.length > 0) { setUploadProgress(30); base64Photos = await Promise.all(selectedFiles.map(f => fileToBase64(f))); }
-      setUploadProgress(60);
-      const response = await fetch(GOOGLE_SCRIPT_URL, {
-        method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action: "createSurveyFolders", projectName: judulProyek, projectYear: tahunProyek, projectCategory: jenisProyek, briefText: keterangan, photos: base64Photos }),
-      });
-      const result = await response.json();
-      setUploadProgress(100);
-      setTimeout(() => {
-        setIsSubmitting(false); setUploadProgress(0);
-        if (result.status === "success") { handleAddActivity(`Setup Folder Survei "${judulProyek}" di G-Drive`, 'FolderPlus', 'text-green-500', 'bg-green-50'); setSelectedFiles([]); setPhotoPreviews([]); alert("Sukses! " + result.message); } 
-        else { alert("Gagal membuat folder: " + result.message); }
-      }, 600);
-    } catch (error) { setIsSubmitting(false); setUploadProgress(0); console.error("Gagal memanggil API Drive:", error); alert("Gagal mengirim file. Jika foto terlalu besar, sistem bisa gagal."); }
-  };
+  if (!judulProyek) return alert("Pilih atau ketik Judul Proyek terlebih dahulu!");
+  setIsSubmitting(true); 
+  setUploadProgress(5);
+
+  try {
+    // TAHAP 1: Buat Folder Utama Terlebih Dahulu (Tanpa Foto)
+    const responseFolder = await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ 
+        action: "createSurveyFoldersOnly", 
+        projectName: judulProyek, 
+        projectYear: tahunProyek, 
+        projectCategory: jenisProyek, 
+        briefText: keterangan 
+      }),
+    });
+    
+    const resultFolder = await responseFolder.json();
+    if (resultFolder.status !== "success") throw new Error("Gagal membuat folder: " + resultFolder.message);
+    
+    // Simpan ID Folder khusus "02. SURVEY & PHOTOS" yang dikembalikan dari backend
+    const targetFolderId = resultFolder.folderId; 
+    
+    // TAHAP 2: Unggah Foto Secara Sekuensial (Satu per Satu dengan Kualitas Asli)
+    if (selectedFiles.length > 0) {
+      const totalPhotos = selectedFiles.length;
+      let uploaded = 0;
+
+      for (let i = 0; i < totalPhotos; i++) {
+        const base64Data = await fileToBase64(selectedFiles[i]);
+        
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ 
+            action: "uploadSinglePhoto", 
+            folderId: targetFolderId, 
+            fileData: { 
+              name: selectedFiles[i].name || `Survei_${i+1}.jpg`, 
+              mimeType: selectedFiles[i].type, 
+              base64: base64Data.base64 
+            } 
+          }),
+        });
+
+        uploaded++;
+        // Update persentase progress bar setiap kali 1 foto selesai
+        setUploadProgress(5 + Math.round((uploaded / totalPhotos) * 95));
+      }
+    }
+
+    handleAddActivity(`Setup Folder Survei "${judulProyek}" & Upload Foto HD`, 'FolderPlus', 'text-green-500', 'bg-green-50'); 
+    setSelectedFiles([]); 
+    setPhotoPreviews([]); 
+    
+    setTimeout(() => {
+      setIsSubmitting(false); 
+      setUploadProgress(0);
+      alert("Sukses! Folder berhasil dibuat dan seluruh foto resolusi tinggi telah diunggah."); 
+    }, 600);
+
+  } catch (error) { 
+    setIsSubmitting(false); 
+    setUploadProgress(0); 
+    alert("Proses terhenti: " + error.message); 
+  }
+};
 
   return (
     <div className="space-y-5 animation-fade-in">
