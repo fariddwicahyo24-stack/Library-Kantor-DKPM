@@ -12,7 +12,7 @@ import {
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, 
-  signOut, signInWithCustomToken, signInAnonymously 
+  signOut, signInWithCustomToken, signInAnonymously, signInWithRedirect 
 } from "firebase/auth";
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, query } from "firebase/firestore";
 
@@ -1887,10 +1887,7 @@ function FormulirView({ user, forms, handleAddActivity }) {
 function LoginScreen() {
   const handleGoogleLogin = async () => {
     try {
-      import { signInWithRedirect } from "firebase/auth"; // Tambahkan ini di baris import atas
-
-// Di dalam fungsi login:
-await signInWithRedirect(auth, googleProvider);
+      await signInWithRedirect(auth, googleProvider);
     } catch (error) {
       console.warn("Google Auth diblokir (Wajar di lingkungan preview). Mengalihkan ke Mode Preview...");
       try {
