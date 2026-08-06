@@ -949,14 +949,20 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
           deadline.setHours(0,0,0,0);
 
           if (doneDate <= deadline) {
-            currentScore += (task.points ? Number(task.points) : 1);
+            // JIKA TEPAT WAKTU: Tambah poin tugas, tapi batasi skor MAKSIMAL 100
+            const earnedPoints = task.points ? Number(task.points) : 1; // Default +1 jika admin tidak isi poin
+            currentScore += earnedPoints;
+            if (currentScore > 100) currentScore = 100; // Limit nilai tertinggi
+            
             onTimeCount++;
           } else {
+            // JIKA TELAT: Poin bonus hangus (tidak ditambahkan). Hanya terapkan denda/penalti keterlambatan.
             const diffDays = Math.ceil(Math.abs(doneDate - deadline) / (1000 * 60 * 60 * 24));
             currentScore -= diffDays;
             lateCount++;
           }
         } else {
+          // JIKA BELUM SELESAI TAPI LEWAT DEADLINE: Penalti berjalan terus
           if (today > deadline) {
              const diffDays = Math.ceil(Math.abs(today - deadline) / (1000 * 60 * 60 * 24));
              currentScore -= diffDays; 
@@ -1028,7 +1034,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3 flex gap-3">
         <AlertTriangle size={16} className="text-blue-500 shrink-0 mt-0.5" />
         <p className="text-[10px] text-blue-800 leading-relaxed font-medium">
-          <b>Aturan Main:</b> Setiap orang start 100 poin tiap awal tahun. Terlambat tugas -1 poin/hari. Submit tepat waktu akan menambahkan Poin sesuai input Admin pada Tugas (default +1). Katalog yang belum dikembalikan setelah jatuh tempo mengurangi <b>1 poin per hari</b>. *Tugas yang dihapus tetap masuk hitungan skor.
+          <b>Aturan Main:</b> Skor maksimal adalah <b>100 poin</b>. Submit tugas tepat waktu akan memulihkan poin yang hilang (skor kembali naik maksimal ke 100). Jika terlambat, poin tambahan tugas <b>hangus</b> dan skor dikurangi 1 poin/hari. Katalog terlambat juga mengurangi <b>1 poin per hari</b>.
         </p>
       </div>
 
