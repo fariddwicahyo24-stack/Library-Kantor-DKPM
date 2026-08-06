@@ -811,7 +811,9 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
 
               <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-[9px]">{task.picName.substring(0,2).toUpperCase()}</div>
+                  <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-[9px]">
+  {(task.picName || "NN").substring(0,2).toUpperCase()}
+</div>
                   <span className="text-xs font-bold text-slate-700">{task.picName}</span>
                 </div>
                 {task.proofUrl && (
