@@ -1885,7 +1885,10 @@ function FormulirView({ user, forms, handleAddActivity }) {
 function LoginScreen() {
   const handleGoogleLogin = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      import { signInWithRedirect } from "firebase/auth"; // Tambahkan ini di baris import atas
+
+// Di dalam fungsi login:
+await signInWithRedirect(auth, googleProvider);
     } catch (error) {
       console.warn("Google Auth diblokir (Wajar di lingkungan preview). Mengalihkan ke Mode Preview...");
       try {
