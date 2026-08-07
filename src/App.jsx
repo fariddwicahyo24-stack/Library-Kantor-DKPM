@@ -251,7 +251,6 @@ export default function App() {
 
   // === 2. HOOK FIRESTORE DATA (REALTIME) ===
   useEffect(() => {
-    // Perbaikan: Pastikan Hook tidak dijalankan jika user belum login
     if (!user) return;
     
     const unsubProyek = onSnapshot(getCol('projects'), (snapshot) => setDatabaseProyek(snapshot.docs.map(doc => doc.data().name)));
@@ -280,7 +279,7 @@ export default function App() {
     return () => { unsubProyek(); unsubTasks(); unsubActivities(); unsubKatalog(); unsubCatalogLoans(); unsubForms(); };
   }, [user]);
 
-  // === 3. HOOK NOTIFIKASI DEADLINE (6 JAM SEKALI) ===
+  // === 3. HOOK NOTIFIKASI DEADLINE (DIPERBARUI DENGAN TRY-CATCH ANTI CRASH) ===
   useEffect(() => {
     if (!user || tasks.length === 0) return;
 
@@ -302,25 +301,38 @@ export default function App() {
       const sixHoursInMs = 6 * 60 * 60 * 1000;
 
       if (!lastNotifTime || (now - parseInt(lastNotifTime)) >= sixHoursInMs) {
+        // Tampilkan notifikasi di dalam aplikasi (aman)
         setShowNotif(true);
-
-        if ("Notification" in window) {
-          if (Notification.permission === "granted") {
-            new Notification("Peringatan Deadline ProSync", {
-              body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari). Segera cek tab Tugas!`,
-              icon: "https://cdn-icons-png.flaticon.com/512/1008/1008015.png" 
-            });
-          } else if (Notification.permission !== "denied") {
-            Notification.requestPermission().then(permission => {
-              if (permission === "granted") {
-                new Notification("Peringatan Deadline ProSync", {
-                  body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari).`
-                });
-              }
-            });
-          }
-        }
         localStorage.setItem('lastDeadlineNotifTime', now.toString());
+
+        // Gunakan Try-Catch berlapis agar layar tidak blank jika browser menolak
+        try {
+          if (typeof window !== "undefined" && "Notification" in window) {
+            if (Notification.permission === "granted") {
+              try {
+                new Notification("Peringatan Deadline ProSync", {
+                  body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari). Segera cek tab Tugas!`,
+                  icon: "https://cdn-icons-png.flaticon.com/512/1008/1008015.png" 
+                });
+              } catch (e) { console.warn("Gagal menampilkan notifikasi sistem:", e); }
+            } else if (Notification.permission !== "denied") {
+              // Menambahkan catch di belakang promise agar tidak memicu unhandled rejection
+              Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                  try {
+                    new Notification("Peringatan Deadline ProSync", {
+                      body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari).`
+                    });
+                  } catch (e) { console.warn("Gagal menampilkan notifikasi sistem:", e); }
+                }
+              }).catch(err => {
+                console.warn("Izin notifikasi diblokir oleh browser (Wajar di HP):", err);
+              });
+            }
+          }
+        } catch (error) {
+          console.warn("Sistem OS tidak mendukung Notifikasi Web API:", error);
+        }
       }
     }
   }, [tasks, user]); 
@@ -930,8 +942,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
       if (pic) stats[pic].overdueLoans.push(loan);
     });
 
-    const today = new Date();
-    today.setHours(0,0,0,0);
+    const nowTime = new Date();
 
     Object.keys(stats).forEach(pic => {
       let currentScore = 100;
@@ -945,8 +956,6 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
         
         if (task.status === 'Done') {
           const doneDate = task.doneAt ? new Date(task.doneAt) : new Date(deadline);
-          doneDate.setHours(0,0,0,0);
-          deadline.setHours(0,0,0,0);
 
           if (doneDate <= deadline) {
             // JIKA TEPAT WAKTU: Tambah poin tugas, tapi batasi skor MAKSIMAL 100
@@ -963,8 +972,8 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
           }
         } else {
           // JIKA BELUM SELESAI TAPI LEWAT DEADLINE: Penalti berjalan terus
-          if (today > deadline) {
-             const diffDays = Math.ceil(Math.abs(today - deadline) / (1000 * 60 * 60 * 24));
+          if (nowTime > deadline) {
+             const diffDays = Math.ceil(Math.abs(nowTime - deadline) / (1000 * 60 * 60 * 24));
              currentScore -= diffDays; 
              activeLateCount++;
           }
@@ -972,7 +981,6 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
       });
 
       let totalCatalogPenalty = 0;
-      const nowTime = new Date();
       stats[pic].overdueLoans.forEach(loan => {
         if(loan.dueDate) {
           const dueDateObj = new Date(`${loan.dueDate}T${loan.dueTime || '23:59'}:00`);
