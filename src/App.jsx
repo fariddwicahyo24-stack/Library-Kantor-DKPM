@@ -60,7 +60,7 @@ const fileToBase64 = (file) => new Promise((resolve, reject) => {
 });
 
 const getIconComponent = (iconName) => {
-  const icons = { TrendingUp, Camera, CalendarCheck, FolderPlus, Edit2, CheckCircle2, Download, PlusCircle, FileText, UploadCloud, Trash2, Award, Archive, RefreshCw };
+  const icons = { TrendingUp, Camera, CalendarCheck, FolderPlus, Edit2, CheckCircle2, Download, PlusCircle, FileText, UploadCloud, Trash2, Award, Archive, RefreshCw, History };
   return icons[iconName] || FileText;
 };
 
@@ -225,13 +225,11 @@ export default function App() {
 
         const userEmail = currentUser.email ? currentUser.email.toLowerCase() : "";
 
-        // Cek apakah email terdaftar di whitelist
         if (ALLOWED_EMAILS.includes(userEmail)) {
           const name = currentUser.displayName || 'Pengguna';
           const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
           
           // PENENTUAN HAK AKSES (ROLE)
-          // Jika emailnya farid, jadikan Admin. Jika bukan, jadikan Staff.
           const userRole = (userEmail === "fariddwicahyo24@gmail.com") ? 'Admin' : 'Staff';
 
           setUser({ name, initials, uid: currentUser.uid, role: userRole, email: userEmail });
@@ -279,63 +277,55 @@ export default function App() {
     return () => { unsubProyek(); unsubTasks(); unsubActivities(); unsubKatalog(); unsubCatalogLoans(); unsubForms(); };
   }, [user]);
 
-  // === 3. HOOK NOTIFIKASI DEADLINE (DIPERBARUI DENGAN TRY-CATCH ANTI CRASH) ===
+  // Ekstrak deadline tasks untuk dipetakan ke UI Notification Center
+  const deadlineTasks = tasks.filter(t => {
+    if (t.status === 'Done' || t.isDeleted) return false;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const taskDate = new Date(t.date); taskDate.setHours(0,0,0,0);
+    const diffDays = Math.ceil((taskDate - today) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 3;
+  });
+
+  // === 3. HOOK NOTIFIKASI DEADLINE OS (DIPERBARUI DENGAN TRY-CATCH ANTI CRASH) ===
   useEffect(() => {
-    if (!user || tasks.length === 0) return;
+    if (!user || deadlineTasks.length === 0) return;
+    
+    const lastNotifTime = localStorage.getItem('lastDeadlineNotifTime');
+    const now = new Date().getTime();
+    const sixHoursInMs = 6 * 60 * 60 * 1000;
 
-    const deadlineTasks = tasks.filter(t => {
-      if (t.status === 'Done' || t.isDeleted) return false;
-      const today = new Date(); 
-      today.setHours(0,0,0,0);
-      
-      const taskDate = new Date(t.date); 
-      taskDate.setHours(0,0,0,0);
-      
-      const diffDays = Math.ceil((taskDate - today) / (1000 * 60 * 60 * 24));
-      return diffDays >= 0 && diffDays <= 3;
-    });
+    if (!lastNotifTime || (now - parseInt(lastNotifTime)) >= sixHoursInMs) {
+      setShowNotif(true);
+      localStorage.setItem('lastDeadlineNotifTime', now.toString());
 
-    if (deadlineTasks.length > 0) {
-      const lastNotifTime = localStorage.getItem('lastDeadlineNotifTime');
-      const now = new Date().getTime();
-      const sixHoursInMs = 6 * 60 * 60 * 1000;
-
-      if (!lastNotifTime || (now - parseInt(lastNotifTime)) >= sixHoursInMs) {
-        // Tampilkan notifikasi di dalam aplikasi (aman)
-        setShowNotif(true);
-        localStorage.setItem('lastDeadlineNotifTime', now.toString());
-
-        // Gunakan Try-Catch berlapis agar layar tidak blank jika browser menolak
-        try {
-          if (typeof window !== "undefined" && "Notification" in window) {
-            if (Notification.permission === "granted") {
-              try {
-                new Notification("Peringatan Deadline ProSync", {
-                  body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari). Segera cek tab Tugas!`,
-                  icon: "https://cdn-icons-png.flaticon.com/512/1008/1008015.png" 
-                });
-              } catch (e) { console.warn("Gagal menampilkan notifikasi sistem:", e); }
-            } else if (Notification.permission !== "denied") {
-              // Menambahkan catch di belakang promise agar tidak memicu unhandled rejection
-              Notification.requestPermission().then(permission => {
-                if (permission === "granted") {
-                  try {
-                    new Notification("Peringatan Deadline ProSync", {
-                      body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari).`
-                    });
-                  } catch (e) { console.warn("Gagal menampilkan notifikasi sistem:", e); }
-                }
-              }).catch(err => {
-                console.warn("Izin notifikasi diblokir oleh browser (Wajar di HP):", err);
+      try {
+        if (typeof window !== "undefined" && "Notification" in window) {
+          if (Notification.permission === "granted") {
+            try {
+              new Notification("Peringatan Deadline ProSync", {
+                body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari). Segera cek tab Tugas!`,
+                icon: "https://cdn-icons-png.flaticon.com/512/1008/1008015.png" 
               });
-            }
+            } catch (e) { console.warn("Gagal menampilkan notifikasi sistem:", e); }
+          } else if (Notification.permission !== "denied") {
+            Notification.requestPermission().then(permission => {
+              if (permission === "granted") {
+                try {
+                  new Notification("Peringatan Deadline ProSync", {
+                    body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari).`
+                  });
+                } catch (e) { console.warn("Gagal menampilkan notifikasi sistem:", e); }
+              }
+            }).catch(err => {
+              console.warn("Izin notifikasi diblokir oleh browser (Wajar di HP):", err);
+            });
           }
-        } catch (error) {
-          console.warn("Sistem OS tidak mendukung Notifikasi Web API:", error);
         }
+      } catch (error) {
+        console.warn("Sistem OS tidak mendukung Notifikasi Web API:", error);
       }
     }
-  }, [tasks, user]); 
+  }, [deadlineTasks.length, user]); 
 
   // === 4. HOOK AUTO REFRESH ===
   const handleManualSync = () => {
@@ -413,7 +403,8 @@ export default function App() {
                 <RefreshCw size={20} />
               </button>
               <button onClick={() => setShowNotif(!showNotif)} className="text-slate-400 hover:text-blue-600 transition-colors relative">
-                <Bell size={22} /><span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+                <Bell size={22} />
+                {(deadlineTasks.length > 0 || activities.length > 0) && <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
               </button>
               <button onClick={handleLogout} className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm border border-blue-200" title="Klik untuk Logout">{user.initials}</button>
             </div>
@@ -423,17 +414,67 @@ export default function App() {
             Update: {lastSyncTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
           </div>
 
+          {/* PERBAIKAN: ISI PUSAT NOTIFIKASI YANG DIROMBAK MENJADI LEBIH DETAIL */}
           {showNotif && (
-            <div className="absolute top-[76px] left-4 right-4 md:left-auto md:right-8 md:w-[360px] bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 animation-fade-in">
-              <h3 className="font-bold text-slate-800 mb-3 text-sm flex items-center gap-2">
-                <Bell size={16} /> Pusat Notifikasi
-              </h3>
-              <div className="space-y-3">
-                <div className="flex gap-3 bg-red-50 p-3 rounded-xl border border-red-100">
-                  <AlertTriangle size={18} className="text-red-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-bold text-red-800">Sistem Peringatan Deadline</p>
-                    <p className="text-[10px] text-red-600 mt-0.5">Tugas aktif dengan batas waktu &le; 3 hari akan memicu notifikasi di sini.</p>
+            <div className="absolute top-[76px] left-4 right-4 md:left-auto md:right-8 md:w-[380px] bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 animation-fade-in">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <Bell size={16} /> Pusat Notifikasi
+                </h3>
+                <button onClick={() => setShowNotif(false)} className="text-slate-400 hover:text-slate-600 p-1 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"><X size={16}/></button>
+              </div>
+
+              <div className="space-y-3 max-h-[350px] overflow-y-auto no-scrollbar pb-2 pr-1">
+                {deadlineTasks.length > 0 ? (
+                  <div className="mb-4">
+                    <h4 className="text-xs font-bold text-slate-700 mb-2.5 flex items-center gap-1.5">
+                      <Clock size={14} className="text-orange-500"/> Mendekati Deadline
+                    </h4>
+                    <div className="space-y-2">
+                      {deadlineTasks.map(t => (
+                        <div key={t.id} className="bg-orange-50 p-3 rounded-xl border border-orange-100 flex justify-between items-center gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-bold text-orange-900 leading-tight mb-0.5 truncate">{t.title}</p>
+                            <p className="text-[9px] text-orange-700 truncate">{t.project} • PIC: <b className="font-bold">{t.picName}</b></p>
+                          </div>
+                          <div className="text-right shrink-0 bg-white px-2 py-1.5 rounded-lg shadow-sm border border-orange-100">
+                            <p className="text-[10px] font-black text-orange-800">{new Date(t.date).toLocaleDateString('id-ID', {day:'numeric', month:'short'})}</p>
+                            <p className="text-[8px] font-bold text-orange-500 uppercase tracking-wider">{t.time}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-center mb-4">
+                    <CheckCircle2 size={24} className="mx-auto text-slate-300 mb-1"/>
+                    <p className="text-[11px] text-slate-500 font-medium">Tim aman! Tidak ada tugas yang mendekati deadline.</p>
+                  </div>
+                )}
+
+                <div>
+                  <h4 className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                    <History size={14} className="text-blue-500"/> Aktivitas Terbaru Tim
+                  </h4>
+                  <div className="space-y-2">
+                    {activities.length > 0 ? activities.slice(0, 5).map((act, i) => {
+                      const IconComp = getIconComponent(act.icon);
+                      return (
+                        <div key={act.id || i} className="flex gap-3 items-start bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                          <div className={`p-2 rounded-lg shrink-0 ${act.bg} ${act.color}`}>
+                            <IconComp size={14}/>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-bold text-slate-700 leading-snug">{act.msg}</p>
+                            <div className="flex items-center gap-1 mt-1 text-[9px] text-slate-400 font-medium">
+                              <span className="text-blue-600 truncate max-w-[100px]">{act.user}</span><span>•</span><span>{formatTimeAgo(act.time)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }) : (
+                       <p className="text-[10px] text-center text-slate-400 py-2">Belum ada aktivitas baru.</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -525,7 +566,7 @@ function BerandaView({ userName, tasks, activities }) {
   );
 }
 
-/* ================= KOMPONEN TUGAS VIEW (DENGAN ARSIP TAHUNAN & BUKTI FOTO) ================= */
+/* ================= KOMPONEN TUGAS VIEW ================= */
 function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear }) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [editingTaskData, setEditingTaskData] = useState(null); 
@@ -881,7 +922,7 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
         </div>
       )}
 
-      {/* TEMPLATE PDF ARSIP TUGAS TAHUNAN (HIDDEN - PERBAIKAN A4) */}
+      {/* TEMPLATE PDF ARSIP TUGAS TAHUNAN */}
       <div id="task-report-template" style={{ display: 'none', background: '#fff', padding: '15mm', fontFamily: 'sans-serif', width: '297mm', color: '#1e293b' }}>
          <h1 style={{ textAlign: 'center', margin: '0 0 5px 0', fontSize: '24px', fontWeight: 'bold' }}>REKAPITULASI TUGAS PROYEK</h1>
          <h3 style={{ textAlign: 'center', margin: '0 0 30px 0', fontSize: '16px', color: '#64748b' }}>Tahun Laporan: {selectedYear}</h3>
@@ -909,7 +950,7 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
   );
 }
 
-/* ================= KOMPONEN KINERJA VIEW (PENALTI KATALOG -1 POINT PER HARI) ================= */
+/* ================= KOMPONEN KINERJA VIEW ================= */
 function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [isExporting, setIsExporting] = useState(false);
@@ -958,20 +999,17 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
           const doneDate = task.doneAt ? new Date(task.doneAt) : new Date(deadline);
 
           if (doneDate <= deadline) {
-            // JIKA TEPAT WAKTU: Tambah poin tugas, tapi batasi skor MAKSIMAL 100
-            const earnedPoints = task.points ? Number(task.points) : 1; // Default +1 jika admin tidak isi poin
+            const earnedPoints = task.points ? Number(task.points) : 1; 
             currentScore += earnedPoints;
-            if (currentScore > 100) currentScore = 100; // Limit nilai tertinggi
+            if (currentScore > 100) currentScore = 100; 
             
             onTimeCount++;
           } else {
-            // JIKA TELAT: Poin bonus hangus (tidak ditambahkan). Hanya terapkan denda/penalti keterlambatan.
             const diffDays = Math.ceil(Math.abs(doneDate - deadline) / (1000 * 60 * 60 * 24));
             currentScore -= diffDays;
             lateCount++;
           }
         } else {
-          // JIKA BELUM SELESAI TAPI LEWAT DEADLINE: Penalti berjalan terus
           if (nowTime > deadline) {
              const diffDays = Math.ceil(Math.abs(nowTime - deadline) / (1000 * 60 * 60 * 24));
              currentScore -= diffDays; 
@@ -1100,7 +1138,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
         </div>
       )}
 
-      {/* TEMPLATE PDF KINERJA (HIDDEN - PERBAIKAN A4) */}
+      {/* TEMPLATE PDF KINERJA (HIDDEN) */}
       <div id="kinerja-report-template" style={{ display: 'none', background: '#fff', padding: '15mm', fontFamily: 'sans-serif', width: '297mm', color: '#1e293b' }}>
          <h1 style={{ textAlign: 'center', margin: '0 0 5px 0', fontSize: '24px', fontWeight: 'bold' }}>LAPORAN EVALUASI KINERJA TIM</h1>
          <h3 style={{ textAlign: 'center', margin: '0 0 20px 0', fontSize: '16px', color: '#64748b' }}>Tahun {selectedYear}</h3>
@@ -1138,7 +1176,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
   );
 }
 
-/* ================= KOMPONEN SURVEI ================= */
+/* ================= KOMPONEN SURVEI (DIPERBARUI DENGAN SISTEM TOLERANSI GAGAL / RETRY) ================= */
 function SurveiView({ title, databaseProyek, handleAddActivity }) {
   const [jenisProyek, setJenisProyek] = useState('Panin');
   const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
@@ -1173,72 +1211,116 @@ function SurveiView({ title, databaseProyek, handleAddActivity }) {
   const handleRemovePhoto = (index) => { setSelectedFiles(prev => prev.filter((_, i) => i !== index)); setPhotoPreviews(prev => prev.filter((_, i) => i !== index)); };
 
   const handleSaveData = async () => {
-  if (!judulProyek) return alert("Pilih atau ketik Judul Proyek terlebih dahulu!");
-  setIsSubmitting(true); 
-  setUploadProgress(5);
+    if (!judulProyek) return alert("Pilih atau ketik Judul Proyek terlebih dahulu!");
+    setIsSubmitting(true); 
+    setUploadProgress(5);
 
-  try {
-    // TAHAP 1: Buat Folder Utama Terlebih Dahulu (Tanpa Foto)
-    const responseFolder = await fetch(GOOGLE_SCRIPT_URL, {
-      method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ 
-        action: "createSurveyFoldersOnly", 
-        projectName: judulProyek, 
-        projectYear: tahunProyek, 
-        projectCategory: jenisProyek, 
-        briefText: keterangan 
-      }),
-    });
-    
-    const resultFolder = await responseFolder.json();
-    if (resultFolder.status !== "success") throw new Error("Gagal membuat folder: " + resultFolder.message);
-    
-    // Simpan ID Folder khusus "02. SURVEY & PHOTOS" yang dikembalikan dari backend
-    const targetFolderId = resultFolder.folderId; 
-    
-    // TAHAP 2: Unggah Foto Secara Sekuensial (Satu per Satu dengan Kualitas Asli)
-    if (selectedFiles.length > 0) {
-      const totalPhotos = selectedFiles.length;
-      let uploaded = 0;
+    try {
+      // TAHAP 1: Buat Folder Utama Terlebih Dahulu (Tanpa Foto)
+      const responseFolder = await fetch(GOOGLE_SCRIPT_URL, {
+        method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ 
+          action: "createSurveyFoldersOnly", 
+          projectName: judulProyek, 
+          projectYear: tahunProyek, 
+          projectCategory: jenisProyek, 
+          briefText: keterangan 
+        }),
+      });
+      
+      const resultFolder = await responseFolder.json();
+      if (resultFolder.status !== "success") throw new Error("Gagal membuat folder: " + resultFolder.message);
+      
+      // Simpan ID Folder khusus "02. SURVEY & PHOTOS" yang dikembalikan dari backend
+      const targetFolderId = resultFolder.folderId; 
+      
+      // TAHAP 2: Unggah Foto Secara Sekuensial dengan Sistem Retry dan Toleransi Error
+      if (selectedFiles.length > 0) {
+        const totalPhotos = selectedFiles.length;
+        let uploaded = 0;
+        let failed = 0;
 
-      for (let i = 0; i < totalPhotos; i++) {
-        const base64Data = await fileToBase64(selectedFiles[i]);
+        for (let i = 0; i < totalPhotos; i++) {
+          let success = false;
+          let attempts = 0;
+          const maxAttempts = 3; // Mencoba ulang 3x jika internet lemot/putus
+
+          while (!success && attempts < maxAttempts) {
+            attempts++;
+            try {
+              const base64Data = await fileToBase64(selectedFiles[i]);
+              
+              const response = await fetch(GOOGLE_SCRIPT_URL, {
+                method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ 
+                  action: "uploadSinglePhoto", 
+                  folderId: targetFolderId, 
+                  fileData: { 
+                    name: selectedFiles[i].name || `Survei_${i+1}.jpg`, 
+                    mimeType: selectedFiles[i].type, 
+                    base64: base64Data.base64 
+                  } 
+                }),
+              });
+
+              let result;
+              try {
+                 const text = await response.text();
+                 result = JSON.parse(text);
+              } catch (parseError) {
+                 throw new Error("Respon server tidak valid / Terjadi Timeout dari Google.");
+              }
+
+              if (result.status !== "success") {
+                 throw new Error(result.message || "Gagal ditolak oleh server.");
+              }
+
+              success = true;
+              uploaded++;
+            } catch (err) {
+              console.warn(`Foto ke-${i+1} gagal terunggah (Percobaan ${attempts}):`, err);
+              if (attempts === maxAttempts) {
+                 failed++; // Nyerah jika sudah 3x coba
+              } else {
+                 await new Promise(res => setTimeout(res, 2000)); // Delay 2 detik sebelum coba lagi
+              }
+            }
+          }
+          
+          // Update persentase progress bar setiap 1 foto selesai diproses (entah itu sukses/gagal)
+          setUploadProgress(5 + Math.round(((i + 1) / totalPhotos) * 95));
+        }
+
+        handleAddActivity(`Setup Folder Survei "${judulProyek}" & Upload Foto HD`, 'FolderPlus', 'text-green-500', 'bg-green-50'); 
+        setSelectedFiles([]); 
+        setPhotoPreviews([]); 
         
-        await fetch(GOOGLE_SCRIPT_URL, {
-          method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({ 
-            action: "uploadSinglePhoto", 
-            folderId: targetFolderId, 
-            fileData: { 
-              name: selectedFiles[i].name || `Survei_${i+1}.jpg`, 
-              mimeType: selectedFiles[i].type, 
-              base64: base64Data.base64 
-            } 
-          }),
-        });
-
-        uploaded++;
-        // Update persentase progress bar setiap kali 1 foto selesai
-        setUploadProgress(5 + Math.round((uploaded / totalPhotos) * 95));
+        setTimeout(() => {
+          setIsSubmitting(false); 
+          setUploadProgress(0);
+          if (failed > 0) {
+             // Memberikan notif jika ada foto yang lolos/gagal
+             alert(`Selesai! ${uploaded} foto berhasil masuk, namun ada ${failed} foto yang gagal karena koneksi terputus/timeout. Silakan upload sisanya secara manual nanti.`);
+          } else {
+             alert("Sukses! Folder berhasil dibuat dan seluruh foto resolusi tinggi telah diunggah."); 
+          }
+        }, 600);
+      } else {
+        // Jika tidak ada foto, hanya bikin folder
+        handleAddActivity(`Setup Folder Survei "${judulProyek}" (Tanpa Foto)`, 'FolderPlus', 'text-green-500', 'bg-green-50'); 
+        setTimeout(() => {
+          setIsSubmitting(false); 
+          setUploadProgress(0);
+          alert("Sukses! Folder proyek berhasil dibuat."); 
+        }, 600);
       }
-    }
 
-    handleAddActivity(`Setup Folder Survei "${judulProyek}" & Upload Foto HD`, 'FolderPlus', 'text-green-500', 'bg-green-50'); 
-    setSelectedFiles([]); 
-    setPhotoPreviews([]); 
-    
-    setTimeout(() => {
+    } catch (error) { 
       setIsSubmitting(false); 
-      setUploadProgress(0);
-      alert("Sukses! Folder berhasil dibuat dan seluruh foto resolusi tinggi telah diunggah."); 
-    }, 600);
-
-  } catch (error) { 
-    setIsSubmitting(false); 
-    setUploadProgress(0); 
-    alert("Proses terhenti: " + error.message); 
-  }
-};
+      setUploadProgress(0); 
+      alert("Proses terhenti total: " + error.message); 
+    }
+  };
 
   return (
     <div className="space-y-5 animation-fade-in">
@@ -1786,7 +1868,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
   );
 }
 
-/* ================= KOMPONEN FORMULIR / FILE MASTER (BARU) ================= */
+/* ================= KOMPONEN FORMULIR / FILE MASTER ================= */
 function FormulirView({ user, forms, handleAddActivity }) {
   const [isAdding, setIsAdding] = useState(false);
   const [formData, setFormData] = useState({ title: '', desc: '', link: '' });
