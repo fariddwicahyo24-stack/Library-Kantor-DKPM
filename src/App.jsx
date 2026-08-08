@@ -30,7 +30,7 @@ const fallbackConfig = {
 // Deteksi Environment
 const isCanvasEnv = typeof __firebase_config !== 'undefined';
 const firebaseConfig = isCanvasEnv ? JSON.parse(__firebase_config) : fallbackConfig;
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'prosync-app-dkpm';
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'design-app-dkpm';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -302,7 +302,7 @@ export default function App() {
         if (typeof window !== "undefined" && "Notification" in window) {
           if (Notification.permission === "granted") {
             try {
-              new Notification("Peringatan Deadline ProSync", {
+              new Notification("Peringatan Deadline Design App DKPM", {
                 body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari). Segera cek tab Tugas!`,
                 icon: "https://cdn-icons-png.flaticon.com/512/1008/1008015.png" 
               });
@@ -311,7 +311,7 @@ export default function App() {
             Notification.requestPermission().then(permission => {
               if (permission === "granted") {
                 try {
-                  new Notification("Peringatan Deadline ProSync", {
+                  new Notification("Peringatan Deadline Design App DKPM", {
                     body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari).`
                   });
                 } catch (e) { console.warn("Gagal menampilkan notifikasi sistem:", e); }
@@ -360,7 +360,7 @@ export default function App() {
     { id: 'kinerja', label: 'Kinerja', icon: Award }
   ];
 
-  // === 6. RENDER KONDISIONAL UTAMA ===
+  // === 6. RENDER UTAMA ===
   if (!user) return <LoginScreen />;
 
   return (
@@ -373,15 +373,17 @@ export default function App() {
       <div className="h-[100dvh] w-full bg-slate-50 flex flex-col md:flex-row">
         <aside className="hidden md:flex md:w-64 lg:w-72 shrink-0 flex-col bg-slate-900 text-slate-200 p-5 lg:p-6">
           <div className="flex items-center gap-3 px-3 pb-8 border-b border-slate-700/70">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-950/30"><FolderOpen size={22} /></div>
-            <div><h1 className="text-lg font-black text-white">ProSync</h1><p className="text-[10px] font-medium text-slate-400">Production Database</p></div>
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-lg shadow-emerald-950/30"><FolderOpen size={22} /></div>
+            <div>
+               <h1 className="text-lg font-black text-white leading-tight">Design App<br/><span className="text-emerald-400">DKPM</span></h1>
+            </div>
           </div>
           <nav className="flex-1 pt-6 space-y-2" aria-label="Navigasi utama">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               return (
-                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/20' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all ${isActive ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950/20' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                   <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
                   <span className="text-sm font-bold">{item.label}</span>
                 </button>
@@ -397,16 +399,16 @@ export default function App() {
         <div className="flex min-w-0 flex-1 flex-col min-h-0">
         <header className="bg-white px-4 pt-4 pb-3 border-b border-slate-200 z-20 shadow-sm sticky top-0 relative md:px-8 md:pt-6 lg:px-10">
           <div className="flex justify-between items-center mb-1">
-            <h1 className="text-xl font-bold text-blue-600 flex items-center gap-2"><FolderOpen size={24} /> ProSync <span className="hidden sm:inline text-sm font-medium text-slate-400">/ Workspace</span></h1>
+            <h1 className="text-xl font-bold text-emerald-600 flex items-center gap-2"><FolderOpen size={24} /> Design App DKPM <span className="hidden sm:inline text-sm font-medium text-slate-400">/ Workspace</span></h1>
             <div className="flex items-center gap-3">
-              <button onClick={handleManualSync} className={`text-slate-400 hover:text-blue-600 transition-colors ${isSyncing ? 'animate-spin text-blue-500' : ''}`} title="Sinkronisasi Data">
+              <button onClick={handleManualSync} className={`text-slate-400 hover:text-emerald-600 transition-colors ${isSyncing ? 'animate-spin text-emerald-500' : ''}`} title="Sinkronisasi Data">
                 <RefreshCw size={20} />
               </button>
-              <button onClick={() => setShowNotif(!showNotif)} className="text-slate-400 hover:text-blue-600 transition-colors relative">
+              <button onClick={() => setShowNotif(!showNotif)} className="text-slate-400 hover:text-emerald-600 transition-colors relative">
                 <Bell size={22} />
                 {(deadlineTasks.length > 0 || activities.length > 0) && <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
               </button>
-              <button onClick={handleLogout} className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm border border-blue-200" title="Klik untuk Logout">{user.initials}</button>
+              <button onClick={handleLogout} className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm border border-emerald-200" title="Klik untuk Logout">{user.initials}</button>
             </div>
           </div>
           <div className="text-[9px] text-slate-400 font-medium flex justify-end items-center gap-1">
@@ -414,7 +416,7 @@ export default function App() {
             Update: {lastSyncTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
           </div>
 
-          {/* PERBAIKAN: ISI PUSAT NOTIFIKASI YANG DIROMBAK MENJADI LEBIH DETAIL */}
+          {/* ISI PUSAT NOTIFIKASI */}
           {showNotif && (
             <div className="absolute top-[76px] left-4 right-4 md:left-auto md:right-8 md:w-[380px] bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 animation-fade-in">
               <div className="flex justify-between items-center mb-3">
@@ -454,20 +456,23 @@ export default function App() {
 
                 <div>
                   <h4 className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
-                    <History size={14} className="text-blue-500"/> Aktivitas Terbaru Tim
+                    <History size={14} className="text-emerald-500"/> Aktivitas Terbaru Tim
                   </h4>
                   <div className="space-y-2">
                     {activities.length > 0 ? activities.slice(0, 5).map((act, i) => {
                       const IconComp = getIconComponent(act.icon);
+                      // Merubah warna default activity blue menjadi emerald
+                      const bgClass = act.bg === 'bg-blue-50' ? 'bg-emerald-50' : act.bg;
+                      const textClass = act.color === 'text-blue-500' ? 'text-emerald-500' : act.color;
                       return (
                         <div key={act.id || i} className="flex gap-3 items-start bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
-                          <div className={`p-2 rounded-lg shrink-0 ${act.bg} ${act.color}`}>
+                          <div className={`p-2 rounded-lg shrink-0 ${bgClass} ${textClass}`}>
                             <IconComp size={14}/>
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[11px] font-bold text-slate-700 leading-snug">{act.msg}</p>
                             <div className="flex items-center gap-1 mt-1 text-[9px] text-slate-400 font-medium">
-                              <span className="text-blue-600 truncate max-w-[100px]">{act.user}</span><span>•</span><span>{formatTimeAgo(act.time)}</span>
+                              <span className="text-emerald-600 truncate max-w-[100px]">{act.user}</span><span>•</span><span>{formatTimeAgo(act.time)}</span>
                             </div>
                           </div>
                         </div>
@@ -482,14 +487,29 @@ export default function App() {
           )}
         </header>
 
-        <main className="flex-1 min-h-0 overflow-y-auto p-4 no-scrollbar md:p-8 lg:p-10" onClick={() => showNotif && setShowNotif(false)}>
-          {activeTab === 'beranda' && <BerandaView userName={user.name} tasks={tasks} activities={activities} />}
-          {activeTab === 'tugas' && <TugasView databaseProyek={databaseProyek} user={user} tasks={tasks} handleAddActivity={handleAddActivity} currentYear={currentYear} />}
-          {activeTab === 'survei' && <SurveiView title="Survei & Setup Proyek" databaseProyek={databaseProyek} handleAddActivity={handleAddActivity} />}
-          {activeTab === 'progres' && <ProgresPPTView title="Laporan Progres" databaseProyek={databaseProyek} handleAddActivity={handleAddActivity} />}
-          {activeTab === 'katalog' && <KatalogView user={user} catalogItems={catalogItems} catalogLoans={catalogLoans} handleAddActivity={handleAddActivity} />}
-          {activeTab === 'formulir' && <FormulirView user={user} forms={forms} handleAddActivity={handleAddActivity} />}
-          {activeTab === 'kinerja' && <KinerjaView tasks={tasks} catalogLoans={catalogLoans} currentYear={currentYear} handleAddActivity={handleAddActivity} />}
+        {/* PERUBAHAN UTAMA: State Preservation dengan CSS class (block/hidden) menggantikan && render */}
+        <main className="flex-1 min-h-0 overflow-y-auto p-4 no-scrollbar md:p-8 lg:p-10 relative" onClick={() => showNotif && setShowNotif(false)}>
+          <div className={activeTab === 'beranda' ? 'block' : 'hidden'}>
+            <BerandaView userName={user.name} tasks={tasks} activities={activities} />
+          </div>
+          <div className={activeTab === 'tugas' ? 'block' : 'hidden'}>
+            <TugasView databaseProyek={databaseProyek} user={user} tasks={tasks} handleAddActivity={handleAddActivity} currentYear={currentYear} />
+          </div>
+          <div className={activeTab === 'survei' ? 'block' : 'hidden'}>
+            <SurveiView title="Survei & Setup Proyek" databaseProyek={databaseProyek} handleAddActivity={handleAddActivity} />
+          </div>
+          <div className={activeTab === 'progres' ? 'block' : 'hidden'}>
+            <ProgresPPTView title="Laporan Progres" databaseProyek={databaseProyek} handleAddActivity={handleAddActivity} />
+          </div>
+          <div className={activeTab === 'katalog' ? 'block' : 'hidden'}>
+            <KatalogView user={user} catalogItems={catalogItems} catalogLoans={catalogLoans} handleAddActivity={handleAddActivity} />
+          </div>
+          <div className={activeTab === 'formulir' ? 'block' : 'hidden'}>
+            <FormulirView user={user} forms={forms} handleAddActivity={handleAddActivity} />
+          </div>
+          <div className={activeTab === 'kinerja' ? 'block' : 'hidden'}>
+            <KinerjaView tasks={tasks} catalogLoans={catalogLoans} currentYear={currentYear} handleAddActivity={handleAddActivity} />
+          </div>
         </main>
 
         <nav className="md:hidden shrink-0 w-full bg-white border-t border-slate-200 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] z-30 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1">
@@ -498,8 +518,8 @@ export default function App() {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               return (
-                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center p-1.5 flex-1 transition-all duration-200 ${isActive ? 'text-blue-600 -translate-y-1' : 'text-slate-400 hover:text-slate-600'}`}>
-                  <div className={`p-1.5 rounded-xl ${isActive ? 'bg-blue-50/80 shadow-sm' : ''}`}><Icon size={20} strokeWidth={isActive ? 2.5 : 2} /></div>
+                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center p-1.5 flex-1 transition-all duration-200 ${isActive ? 'text-emerald-600 -translate-y-1' : 'text-slate-400 hover:text-slate-600'}`}>
+                  <div className={`p-1.5 rounded-xl ${isActive ? 'bg-emerald-50/80 shadow-sm' : ''}`}><Icon size={20} strokeWidth={isActive ? 2.5 : 2} /></div>
                   <span className={`text-[9px] mt-1 ${isActive ? 'font-bold' : 'font-medium'} line-clamp-1`}>{item.label}</span>
                 </button>
               );
@@ -531,7 +551,7 @@ function BerandaView({ userName, tasks, activities }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-2 relative overflow-hidden">
-          <div className="p-2 bg-blue-50 text-blue-600 rounded-xl w-fit relative z-10"><CalendarCheck size={20}/></div>
+          <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl w-fit relative z-10"><CalendarCheck size={20}/></div>
           <p className="text-slate-500 text-xs font-medium relative z-10">Tugas Aktif</p>
           <p className="text-2xl font-black text-slate-800 relative z-10">{activeTasksCount}</p>
           <div className="absolute -bottom-4 -right-4 text-slate-50 opacity-50 z-0"><CalendarCheck size={64}/></div>
@@ -548,9 +568,11 @@ function BerandaView({ userName, tasks, activities }) {
         <div className="space-y-4">
           {activities.length === 0 ? <p className="text-xs text-slate-400 text-center py-4">Belum ada aktivitas di Cloud.</p> : activities.slice(0, 5).map((item, i) => {
               const IconComp = getIconComponent(item.icon);
+              const bgClass = item.bg === 'bg-blue-50' ? 'bg-emerald-50' : item.bg;
+              const textClass = item.color === 'text-blue-500' ? 'text-emerald-500' : item.color;
               return (
                 <div key={item.id || i} className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-full ${item.bg} ${item.color}`}><IconComp size={16} strokeWidth={2.5} /></div>
+                  <div className={`p-2.5 rounded-full ${bgClass} ${textClass}`}><IconComp size={16} strokeWidth={2.5} /></div>
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-slate-800 leading-tight">{item.msg}</p>
                     <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-500">
@@ -606,7 +628,7 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
     try {
       if (editingTaskData) {
         await updateDoc(getDoc('tasks', editingTaskData.id), newTask);
-        handleAddActivity(`Mengedit tugas "${newTask.title}" untuk ${newTask.picName}`, 'Edit2', 'text-blue-500', 'bg-blue-50');
+        handleAddActivity(`Mengedit tugas "${newTask.title}" untuk ${newTask.picName}`, 'Edit2', 'text-emerald-500', 'bg-emerald-50');
       } else {
         const addedTask = { ...newTask, status: 'To Do', doneAt: null, proofUrl: null, isDeleted: false, createdAt: new Date().toISOString() };
         await addDoc(getCol('tasks'), addedTask);
@@ -622,7 +644,7 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
     } else {
       try { 
         await updateDoc(getDoc('tasks', task.id), { status: newStatus, doneAt: null }); 
-        handleAddActivity(`Status "${task.title}" jadi ${newStatus}`, 'RefreshCw', 'text-blue-500', 'bg-blue-50'); 
+        handleAddActivity(`Status "${task.title}" jadi ${newStatus}`, 'RefreshCw', 'text-emerald-500', 'bg-emerald-50'); 
       } catch (error) { console.error(error); }
     }
   };
@@ -734,26 +756,26 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
         </div>
 
         <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-          <div className="bg-blue-50 border border-blue-100 text-blue-800 text-[10px] p-2 rounded-lg font-medium flex gap-2">
-            <AlertTriangle size={14} className="shrink-0 mt-0.5 text-blue-600"/> Hak Akses: Form ini hanya dapat digunakan oleh Admin untuk mengassign tugas ke tim.
+          <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 text-[10px] p-2 rounded-lg font-medium flex gap-2">
+            <AlertTriangle size={14} className="shrink-0 mt-0.5 text-emerald-600"/> Hak Akses: Form ini hanya dapat digunakan oleh Admin untuk mengassign tugas ke tim.
           </div>
           <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">1. Judul / Tugas</label>
-            <input type="text" value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
           <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">2. Nama Proyek</label>
-            <input type="text" list="project-list" value={newTask.project} onChange={e => setNewTask({...newTask, project: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" list="project-list" value={newTask.project} onChange={e => setNewTask({...newTask, project: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
             <datalist id="project-list">{databaseProyek.map((proj, idx) => <option key={idx} value={proj} />)}</datalist>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">3. Tanggal Deadline</label>
-              <input type="date" value={newTask.date} onChange={e => setNewTask({...newTask, date: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="date" value={newTask.date} onChange={e => setNewTask({...newTask, date: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">Waktu / Jam</label>
-              <input type="time" value={newTask.time} onChange={e => setNewTask({...newTask, time: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="time" value={newTask.time} onChange={e => setNewTask({...newTask, time: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -761,7 +783,7 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
               <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">4. Nama PIC (Assign Ke)</label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input type="text" list="pic-history-list" placeholder="Pilih atau ketik..." value={newTask.picName} onChange={e => setNewTask({...newTask, picName: e.target.value})} className="w-full pl-9 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="text" list="pic-history-list" placeholder="Pilih atau ketik..." value={newTask.picName} onChange={e => setNewTask({...newTask, picName: e.target.value})} className="w-full pl-9 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
                 <datalist id="pic-history-list">
                   {uniquePICs.map((name, idx) => <option key={idx} value={name} />)}
                 </datalist>
@@ -769,19 +791,19 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
             </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">Skor Poin Kinerja</label>
-              <input type="number" value={newTask.points || ''} onChange={e => setNewTask({...newTask, points: parseInt(e.target.value) || 0})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Cth: 10" />
+              <input type="number" value={newTask.points || ''} onChange={e => setNewTask({...newTask, points: parseInt(e.target.value) || 0})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Cth: 10" />
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">5. Keterangan Tambahan</label>
             <div className="relative">
               <AlignLeft className="absolute left-3 top-3 text-slate-400" size={16} />
-              <textarea rows="3" value={newTask.desc} onChange={e => setNewTask({...newTask, desc: e.target.value})} className="w-full pl-9 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none resize-none focus:ring-2 focus:ring-blue-500" />
+              <textarea rows="3" value={newTask.desc} onChange={e => setNewTask({...newTask, desc: e.target.value})} className="w-full pl-9 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none resize-none focus:ring-2 focus:ring-emerald-500" />
             </div>
           </div>
           <div className="flex gap-2 pt-3">
             <button disabled={isSubmitting} onClick={() => setIsAddingTask(false)} className="flex-1 bg-slate-100 text-slate-700 font-bold py-3.5 rounded-xl text-sm hover:bg-slate-200 transition-all disabled:opacity-50">Batal</button>
-            <button disabled={isSubmitting} onClick={handleSaveTask} className="flex-1 bg-blue-600 text-white font-bold py-3.5 rounded-xl text-sm shadow-md hover:bg-blue-700 transition-all disabled:opacity-50">
+            <button disabled={isSubmitting} onClick={handleSaveTask} className="flex-1 bg-emerald-600 text-white font-bold py-3.5 rounded-xl text-sm shadow-md hover:bg-emerald-700 transition-all disabled:opacity-50">
               {isSubmitting ? 'Menyimpan...' : (editingTaskData ? 'Perbarui' : 'Simpan Tugas')}
             </button>
           </div>
@@ -796,8 +818,8 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
         <div>
           <h2 className="text-xl font-bold text-slate-800">Daftar Tugas</h2>
           <div className="flex items-center gap-2 mt-1">
-            <CalendarDays size={14} className="text-blue-500" />
-            <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent text-sm font-bold text-blue-600 outline-none cursor-pointer">
+            <CalendarDays size={14} className="text-emerald-500" />
+            <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent text-sm font-bold text-emerald-600 outline-none cursor-pointer">
               <option value={(parseInt(currentYear) - 1).toString()}>{parseInt(currentYear) - 1}</option>
               <option value={currentYear}>{currentYear}</option>
               <option value={(parseInt(currentYear) + 1).toString()}>{parseInt(currentYear) + 1}</option>
@@ -809,21 +831,21 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
              {isExporting ? <span className="text-[10px] font-bold animate-pulse">{uploadProgress}%</span> : <Archive size={18} />}
           </button>
           {user.role === 'Admin' && (
-            <button onClick={handleOpenAddForm} className="bg-blue-600 text-white p-2 px-3 rounded-xl flex items-center gap-1 shadow-md hover:bg-blue-700 transition-colors">
+            <button onClick={handleOpenAddForm} className="bg-emerald-600 text-white p-2 px-3 rounded-xl flex items-center gap-1 shadow-md hover:bg-emerald-700 transition-colors">
               <Plus size={16} /><span className="text-xs font-bold">Tugas</span>
             </button>
           )}
         </div>
       </div>
 
-      <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex justify-between items-center">
+      <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex justify-between items-center">
         <div>
-           <p className="text-[10px] text-blue-800 font-bold">Filter Aktif: Tahun {selectedYear}</p>
-           <p className="text-[9px] text-blue-600 mt-0.5">Daftar otomatis ter-reset/disembunyikan berganti tahun.</p>
+           <p className="text-[10px] text-emerald-800 font-bold">Filter Aktif: Tahun {selectedYear}</p>
+           <p className="text-[9px] text-emerald-600 mt-0.5">Daftar otomatis ter-reset/disembunyikan berganti tahun.</p>
         </div>
         <div className="text-right">
-           <span className="text-lg font-black text-blue-700">{yearlyTasks.length}</span>
-           <p className="text-[8px] uppercase font-bold text-blue-500">Total Tugas</p>
+           <span className="text-lg font-black text-emerald-700">{yearlyTasks.length}</span>
+           <p className="text-[8px] uppercase font-bold text-emerald-500">Total Tugas</p>
         </div>
       </div>
 
@@ -846,7 +868,7 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
                   </span>
                   {user.role === 'Admin' && (
                     <div className="flex items-center gap-1 ml-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => handleOpenEditForm(task)} className="text-slate-400 hover:text-blue-600 p-1 bg-slate-50 hover:bg-blue-50 rounded" title="Edit Tugas"><Edit2 size={12} /></button>
+                      <button onClick={() => handleOpenEditForm(task)} className="text-slate-400 hover:text-emerald-600 p-1 bg-slate-50 hover:bg-emerald-50 rounded" title="Edit Tugas"><Edit2 size={12} /></button>
                       <button onClick={() => setDeleteConfirm(task)} className="text-slate-400 hover:text-red-600 p-1 bg-slate-50 hover:bg-red-50 rounded" title="Hapus Tugas (Tidak memotong skor Kinerja)"><Trash2 size={12} /></button>
                     </div>
                   )}
@@ -854,23 +876,23 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
               </div>
               <h3 className={`font-bold leading-tight ${task.status === 'Done' ? 'text-slate-500' : 'text-slate-800'}`}>
                 {task.title}
-                {task.points > 0 && <span className="inline-block align-middle ml-2 text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md">{task.points} Pts</span>}
+                {task.points > 0 && <span className="inline-block align-middle ml-2 text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-md">{task.points} Pts</span>}
               </h3>
               {task.desc && <div className="mt-2 mb-1 p-2 rounded-r-lg border-l-2 bg-slate-50 border-slate-300"><p className="text-[10px] italic leading-snug text-slate-500">"{task.desc}"</p></div>}
               
               <div className="mt-2 space-y-1">
-                <p className="text-[11px] text-slate-500 flex items-center gap-1.5"><FolderOpen size={12} className="text-blue-500"/> {task.project}</p>
+                <p className="text-[11px] text-slate-500 flex items-center gap-1.5"><FolderOpen size={12} className="text-emerald-500"/> {task.project}</p>
               </div>
 
               <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-[9px]">
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-[9px]">
                   {task.picName ? task.picName.substring(0,2).toUpperCase() : 'NN'}
                 </div>
                   <span className="text-xs font-bold text-slate-700">{task.picName}</span>
                 </div>
                 {task.proofUrl && (
-                  <button onClick={() => window.open(task.proofUrl, '_blank')} className="flex items-center gap-1 text-[9px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 transition-colors shadow-sm">
+                  <button onClick={() => window.open(task.proofUrl, '_blank')} className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors shadow-sm">
                     <LinkIcon size={10} /> Cek Bukti Kerja
                   </button>
                 )}
@@ -887,21 +909,21 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
              <h3 className="text-lg font-black text-slate-800 mb-1">Tugas Selesai?</h3>
              <p className="text-[11px] text-slate-500 mb-5 leading-relaxed">Wajib melampirkan screenshot/foto bukti kerja. Foto akan diarsip di G-Drive folder `09. SUBMISSION`.</p>
              
-             <div className="border-2 border-dashed border-blue-200 bg-blue-50/50 rounded-2xl p-4 text-center mb-5">
-               <Camera size={24} className="text-blue-500 mx-auto mb-2" />
-               <p className="text-xs font-bold text-blue-800 mb-1">{selectedProof ? selectedProof.name : 'Pilih Foto / Screenshot'}</p>
+             <div className="border-2 border-dashed border-emerald-200 bg-emerald-50/50 rounded-2xl p-4 text-center mb-5">
+               <Camera size={24} className="text-emerald-500 mx-auto mb-2" />
+               <p className="text-xs font-bold text-emerald-800 mb-1">{selectedProof ? selectedProof.name : 'Pilih Foto / Screenshot'}</p>
                <input type="file" accept="image/*" onChange={(e) => setSelectedProof(e.target.files[0])} className="hidden" ref={proofFileInput} />
-               <button onClick={() => proofFileInput.current?.click()} className="mt-2 bg-white border border-blue-200 text-blue-600 px-4 py-1.5 rounded-lg text-[10px] font-bold shadow-sm">Buka Galeri/Kamera</button>
+               <button onClick={() => proofFileInput.current?.click()} className="mt-2 bg-white border border-emerald-200 text-emerald-600 px-4 py-1.5 rounded-lg text-[10px] font-bold shadow-sm">Buka Galeri/Kamera</button>
              </div>
 
              {isSubmitting && (
                <div className="mb-4">
-                 <div className="flex justify-between text-[10px] font-bold text-blue-700 mb-1"><span>Mengunggah ke G-Drive...</span><span>{uploadProgress}%</span></div>
-                 <div className="w-full bg-blue-100 rounded-full h-2 overflow-hidden"><div className="bg-blue-600 h-2 transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div></div>
+                 <div className="flex justify-between text-[10px] font-bold text-emerald-700 mb-1"><span>Mengunggah ke G-Drive...</span><span>{uploadProgress}%</span></div>
+                 <div className="w-full bg-emerald-100 rounded-full h-2 overflow-hidden"><div className="bg-emerald-600 h-2 transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div></div>
                </div>
              )}
 
-             <button disabled={isSubmitting} onClick={handleUploadProof} className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-blue-700 transition-colors disabled:opacity-50">
+             <button disabled={isSubmitting} onClick={handleUploadProof} className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-emerald-700 transition-colors disabled:opacity-50">
                {isSubmitting ? 'Memproses...' : 'Submit Tugas & Bukti'}
              </button>
           </div>
@@ -938,13 +960,13 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
                {yearlyTasks.sort((a,b) => new Date(a.date) - new Date(b.date)).map((t, i) => (
                  <tr key={i} className="pdf-page-break" style={{ borderBottom: '1px solid #e2e8f0' }}>
                     <td style={{ padding: '10px' }}>{i + 1}</td><td style={{ padding: '10px', fontWeight: 'bold' }}>{t.title}</td>
-                    <td style={{ padding: '10px' }}>{t.project}</td><td style={{ padding: '10px', color: '#2563eb', fontWeight: 'bold' }}>{t.picName}</td>
+                    <td style={{ padding: '10px' }}>{t.project}</td><td style={{ padding: '10px', color: '#059669', fontWeight: 'bold' }}>{t.picName}</td>
                     <td style={{ padding: '10px' }}>{t.date} {t.time}</td><td style={{ padding: '10px' }}>{t.status}</td>
                  </tr>
                ))}
             </tbody>
          </table>
-         <p style={{ marginTop: '30px', fontSize: '10px', color: '#94a3b8', textAlign: 'right' }}>Dicetak oleh Sistem ProSync pada {new Date().toLocaleDateString('id-ID')}</p>
+         <p style={{ marginTop: '30px', fontSize: '10px', color: '#94a3b8', textAlign: 'right' }}>Dicetak oleh Sistem Design App DKPM pada {new Date().toLocaleDateString('id-ID')}</p>
       </div>
     </div>
   );
@@ -1064,22 +1086,22 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
         <div>
           <h2 className="text-xl font-bold text-slate-800">Kinerja Tim</h2>
           <div className="flex items-center gap-2 mt-1">
-            <CalendarDays size={14} className="text-blue-500" />
-            <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent text-sm font-bold text-blue-600 outline-none cursor-pointer">
+            <CalendarDays size={14} className="text-emerald-500" />
+            <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent text-sm font-bold text-emerald-600 outline-none cursor-pointer">
               <option value={(parseInt(currentYear) - 1).toString()}>{parseInt(currentYear) - 1}</option>
               <option value={currentYear}>{currentYear}</option>
               <option value={(parseInt(currentYear) + 1).toString()}>{parseInt(currentYear) + 1}</option>
             </select>
           </div>
         </div>
-        <button onClick={handleExportPerformanceReport} disabled={isExporting} className="bg-blue-600 text-white p-2 px-3 rounded-xl flex items-center gap-1.5 shadow-md hover:bg-blue-700 transition-colors disabled:opacity-50">
+        <button onClick={handleExportPerformanceReport} disabled={isExporting} className="bg-emerald-600 text-white p-2 px-3 rounded-xl flex items-center gap-1.5 shadow-md hover:bg-emerald-700 transition-colors disabled:opacity-50">
           {isExporting ? <span className="text-xs font-bold animate-pulse">{uploadProgress}%</span> : <><Download size={14} /><span className="text-xs font-bold">Cetak Rapor</span></>}
         </button>
       </div>
 
-      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3 flex gap-3">
-        <AlertTriangle size={16} className="text-blue-500 shrink-0 mt-0.5" />
-        <p className="text-[10px] text-blue-800 leading-relaxed font-medium">
+      <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-3 flex gap-3">
+        <AlertTriangle size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+        <p className="text-[10px] text-emerald-800 leading-relaxed font-medium">
           <b>Aturan Main:</b> Skor maksimal adalah <b>100 poin</b>. Submit tugas tepat waktu akan memulihkan poin yang hilang (skor kembali naik maksimal ke 100). Jika terlambat, poin tambahan tugas <b>hangus</b> dan skor dikurangi 1 poin/hari. Katalog terlambat juga mengurangi <b>1 poin per hari</b>.
         </p>
       </div>
@@ -1132,7 +1154,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
            <h3 className="text-sm font-black mb-4 flex items-center gap-2"><TrendingUp size={16}/> Rekap Kinerja {selectedYear}</h3>
            <div className="grid grid-cols-2 gap-4 relative z-10">
               <div className="bg-slate-700/50 p-3 rounded-2xl border border-slate-600"><p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Rata-Rata Tim</p><p className="text-2xl font-black text-green-400">{avgScore} <span className="text-xs">Pts</span></p></div>
-              <div className="bg-slate-700/50 p-3 rounded-2xl border border-slate-600"><p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Top Performer</p><p className="text-sm font-black text-blue-300 mt-1 uppercase line-clamp-1">{bestPerformer}</p></div>
+              <div className="bg-slate-700/50 p-3 rounded-2xl border border-slate-600"><p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Top Performer</p><p className="text-sm font-black text-emerald-300 mt-1 uppercase line-clamp-1">{bestPerformer}</p></div>
               <div className="col-span-2 bg-slate-700/50 p-3 rounded-2xl border border-slate-600 flex justify-between items-center"><span className="text-xs font-bold text-slate-300">Total Tugas Dievaluasi:</span><span className="text-lg font-black text-white">{totalTasksEvaluated}</span></div>
            </div>
         </div>
@@ -1149,7 +1171,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
 
          {leaderboard.map((emp, idx) => (
            <div key={idx} className="pdf-page-break" style={{ marginBottom: '30px', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '15px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #3b82f6', paddingBottom: '10px', marginBottom: '15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #059669', paddingBottom: '10px', marginBottom: '15px' }}>
                  <h2 style={{ margin: 0, fontSize: '18px', color: '#1e293b', fontWeight: '900' }}>#{idx+1} {emp.name}</h2>
                  <div style={{ fontSize: '14px', fontWeight: 'bold' }}><span style={{ color: emp.score >= 90 ? '#16a34a' : emp.score >= 75 ? '#ea580c' : '#dc2626' }}>Skor Akhir: {emp.score} Poin</span></div>
               </div>
@@ -1176,7 +1198,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
   );
 }
 
-/* ================= KOMPONEN SURVEI (DIPERBARUI DENGAN SISTEM TOLERANSI GAGAL / RETRY) ================= */
+/* ================= KOMPONEN SURVEI ================= */
 function SurveiView({ title, databaseProyek, handleAddActivity }) {
   const [jenisProyek, setJenisProyek] = useState('Panin');
   const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
@@ -1216,7 +1238,7 @@ function SurveiView({ title, databaseProyek, handleAddActivity }) {
     setUploadProgress(5);
 
     try {
-      // TAHAP 1: Buat Folder Utama Terlebih Dahulu (Tanpa Foto)
+      // TAHAP 1: Buat Folder Utama
       const responseFolder = await fetch(GOOGLE_SCRIPT_URL, {
         method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({ 
@@ -1231,10 +1253,9 @@ function SurveiView({ title, databaseProyek, handleAddActivity }) {
       const resultFolder = await responseFolder.json();
       if (resultFolder.status !== "success") throw new Error("Gagal membuat folder: " + resultFolder.message);
       
-      // Simpan ID Folder khusus "02. SURVEY & PHOTOS" yang dikembalikan dari backend
       const targetFolderId = resultFolder.folderId; 
       
-      // TAHAP 2: Unggah Foto Secara Sekuensial dengan Sistem Retry dan Toleransi Error
+      // TAHAP 2: Unggah Foto
       if (selectedFiles.length > 0) {
         const totalPhotos = selectedFiles.length;
         let uploaded = 0;
@@ -1243,7 +1264,7 @@ function SurveiView({ title, databaseProyek, handleAddActivity }) {
         for (let i = 0; i < totalPhotos; i++) {
           let success = false;
           let attempts = 0;
-          const maxAttempts = 3; // Mencoba ulang 3x jika internet lemot/putus
+          const maxAttempts = 3; 
 
           while (!success && attempts < maxAttempts) {
             attempts++;
@@ -1280,14 +1301,13 @@ function SurveiView({ title, databaseProyek, handleAddActivity }) {
             } catch (err) {
               console.warn(`Foto ke-${i+1} gagal terunggah (Percobaan ${attempts}):`, err);
               if (attempts === maxAttempts) {
-                 failed++; // Nyerah jika sudah 3x coba
+                 failed++; 
               } else {
-                 await new Promise(res => setTimeout(res, 2000)); // Delay 2 detik sebelum coba lagi
+                 await new Promise(res => setTimeout(res, 2000)); 
               }
             }
           }
           
-          // Update persentase progress bar setiap 1 foto selesai diproses (entah itu sukses/gagal)
           setUploadProgress(5 + Math.round(((i + 1) / totalPhotos) * 95));
         }
 
@@ -1299,14 +1319,12 @@ function SurveiView({ title, databaseProyek, handleAddActivity }) {
           setIsSubmitting(false); 
           setUploadProgress(0);
           if (failed > 0) {
-             // Memberikan notif jika ada foto yang lolos/gagal
              alert(`Selesai! ${uploaded} foto berhasil masuk, namun ada ${failed} foto yang gagal karena koneksi terputus/timeout. Silakan upload sisanya secara manual nanti.`);
           } else {
              alert("Sukses! Folder berhasil dibuat dan seluruh foto resolusi tinggi telah diunggah."); 
           }
         }, 600);
       } else {
-        // Jika tidak ada foto, hanya bikin folder
         handleAddActivity(`Setup Folder Survei "${judulProyek}" (Tanpa Foto)`, 'FolderPlus', 'text-green-500', 'bg-green-50'); 
         setTimeout(() => {
           setIsSubmitting(false); 
@@ -1326,44 +1344,44 @@ function SurveiView({ title, databaseProyek, handleAddActivity }) {
     <div className="space-y-5 animation-fade-in">
       <div><h2 className="text-xl font-bold text-slate-800">Survei & Setup Proyek</h2><p className="text-sm text-slate-500 mt-0.5">Setup folder & unggah data awal.</p></div>
       <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-4 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-full z-0 opacity-50"></div>
-        <h3 className="font-bold text-slate-800 flex items-center gap-2 relative z-10"><FolderPlus size={18} className="text-blue-600" /> Tahap 1: Setup Proyek</h3>
+        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full z-0 opacity-50"></div>
+        <h3 className="font-bold text-slate-800 flex items-center gap-2 relative z-10"><FolderPlus size={18} className="text-emerald-600" /> Tahap 1: Setup Proyek</h3>
         <div className="space-y-4 relative z-10">
           <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Kategori Proyek</label>
-            <div className="flex bg-slate-100 p-1 rounded-xl"><button onClick={() => setJenisProyek('Panin')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${jenisProyek === 'Panin' ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>Proyek Panin</button><button onClick={() => setJenisProyek('Non Panin')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${jenisProyek === 'Non Panin' ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>Non Panin</button></div>
+            <div className="flex bg-slate-100 p-1 rounded-xl"><button onClick={() => setJenisProyek('Panin')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${jenisProyek === 'Panin' ? 'bg-white shadow-sm text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}>Proyek Panin</button><button onClick={() => setJenisProyek('Non Panin')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${jenisProyek === 'Non Panin' ? 'bg-white shadow-sm text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}>Non Panin</button></div>
           </div>
-          <div><label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Tanggal Mulai (Filter Tahun)</label><input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" /><p className="text-[10px] mt-1.5 text-blue-600 font-medium flex items-center gap-1 bg-blue-50 p-1.5 rounded-lg w-fit border border-blue-100"><FolderOpen size={10} /> Folder Induk: <b>Tahun {tahunProyek} &gt; {jenisProyek}</b></p></div>
+          <div><label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Tanggal Mulai (Filter Tahun)</label><input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 outline-none" /><p className="text-[10px] mt-1.5 text-emerald-600 font-medium flex items-center gap-1 bg-emerald-50 p-1.5 rounded-lg w-fit border border-emerald-100"><FolderOpen size={10} /> Folder Induk: <b>Tahun {tahunProyek} &gt; {jenisProyek}</b></p></div>
           <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Judul Proyek</label>
-            <div className="flex items-center gap-2"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input type="text" value={judulProyek} onChange={(e) => setJudulProyek(e.target.value)} placeholder="Ketik cari atau buat baru..." className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" /></div><button onClick={handleAddProject} className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-sm transition-colors flex shrink-0"><Plus size={20} /></button></div>
+            <div className="flex items-center gap-2"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input type="text" value={judulProyek} onChange={(e) => setJudulProyek(e.target.value)} placeholder="Ketik cari atau buat baru..." className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 outline-none" /></div><button onClick={handleAddProject} className="bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-xl shadow-sm transition-colors flex shrink-0"><Plus size={20} /></button></div>
             <div className="mt-2.5">
               <div className="flex items-center gap-1.5 mb-1.5 text-[10px] font-bold text-slate-400 uppercase"><History size={10} /> {judulProyek ? 'Hasil Pencarian:' : 'Proyek Terakhir di Cloud:'}</div>
-              {filteredProjects.length > 0 ? ( <div className="flex flex-wrap gap-1.5">{filteredProjects.map((proj, idx) => ( <button key={idx} onClick={() => setJudulProyek(proj)} className="bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 text-[10px] font-medium px-2.5 py-1 rounded-full transition-colors">{proj}</button> ))}</div> ) : ( <div className="bg-orange-50 border border-orange-100 rounded-lg p-2 flex items-start gap-2"><AlertTriangle size={14} className="text-orange-500 shrink-0 mt-0.5" /><p className="text-[10px] text-orange-800 font-medium leading-tight">Nama proyek tidak ditemukan. Ketuk tombol <b>+ (Plus)</b> biru di samping untuk menyimpan nama proyek baru.</p></div> )}
+              {filteredProjects.length > 0 ? ( <div className="flex flex-wrap gap-1.5">{filteredProjects.map((proj, idx) => ( <button key={idx} onClick={() => setJudulProyek(proj)} className="bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 text-[10px] font-medium px-2.5 py-1 rounded-full transition-colors">{proj}</button> ))}</div> ) : ( <div className="bg-orange-50 border border-orange-100 rounded-lg p-2 flex items-start gap-2"><AlertTriangle size={14} className="text-orange-500 shrink-0 mt-0.5" /><p className="text-[10px] text-orange-800 font-medium leading-tight">Nama proyek tidak ditemukan. Ketuk tombol <b>+ (Plus)</b> hijau di samping untuk menyimpan nama proyek baru.</p></div> )}
             </div>
           </div>
-          <div className="bg-slate-800 rounded-xl p-3 mt-4 border border-slate-700 shadow-inner"><p className="text-[10px] text-slate-300 font-bold mb-1.5 flex items-center gap-1.5"><FolderPlus size={12} className="text-blue-400 shrink-0" /><span>Struktur G-Drive Otomatis:</span></p><div className="grid grid-cols-1 md:grid-cols-2 gap-x-2 gap-y-1.5 h-32 overflow-y-auto no-scrollbar pr-1">{folderStructure.map((folderName, idx) => ( <div key={idx} className="flex items-center gap-1.5 text-[9px] text-slate-400"><FolderOpen size={10} className="text-yellow-500 shrink-0" /><span className="truncate">{folderName}</span></div> ))}</div></div>
+          <div className="bg-slate-800 rounded-xl p-3 mt-4 border border-slate-700 shadow-inner"><p className="text-[10px] text-slate-300 font-bold mb-1.5 flex items-center gap-1.5"><FolderPlus size={12} className="text-emerald-400 shrink-0" /><span>Struktur G-Drive Otomatis:</span></p><div className="grid grid-cols-1 md:grid-cols-2 gap-x-2 gap-y-1.5 h-32 overflow-y-auto no-scrollbar pr-1">{folderStructure.map((folderName, idx) => ( <div key={idx} className="flex items-center gap-1.5 text-[9px] text-slate-400"><FolderOpen size={10} className="text-yellow-500 shrink-0" /><span className="truncate">{folderName}</span></div> ))}</div></div>
         </div>
       </div>
       <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-        <h3 className="font-bold text-slate-800 flex items-center gap-2"><File size={18} className="text-blue-600" /> Tahap 2: Data Survei</h3>
-        <div><label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex justify-between">Keterangan / Aanwijzing</label><textarea rows="3" value={keterangan} onChange={(e) => setKeterangan(e.target.value)} placeholder="Ketik catatan brief owner di sini..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
+        <h3 className="font-bold text-slate-800 flex items-center gap-2"><File size={18} className="text-emerald-600" /> Tahap 2: Data Survei</h3>
+        <div><label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider flex justify-between">Keterangan / Aanwijzing</label><textarea rows="3" value={keterangan} onChange={(e) => setKeterangan(e.target.value)} placeholder="Ketik catatan brief owner di sini..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none" /></div>
         <div className="pt-2">
           <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Dokumentasi Survei (Akan Diunggah)</label>
-          <div className="border-2 border-dashed border-blue-300 bg-blue-50/50 rounded-2xl p-4 transition-colors relative">
+          <div className="border-2 border-dashed border-emerald-300 bg-emerald-50/50 rounded-2xl p-4 transition-colors relative">
             <div className="flex flex-col items-center justify-center text-center py-4">
               <div className="flex gap-3 mb-3">
-                <input type="file" multiple accept="image/*" capture="environment" className="hidden" id="survey-camera" onChange={handlePhotoSelection} /><label htmlFor="survey-camera" className="cursor-pointer bg-blue-600 text-white p-3 rounded-full shadow-md hover:bg-blue-700 active:scale-95 transition-all flex flex-col items-center justify-center w-14 h-14"><Camera size={20} /></label>
+                <input type="file" multiple accept="image/*" capture="environment" className="hidden" id="survey-camera" onChange={handlePhotoSelection} /><label htmlFor="survey-camera" className="cursor-pointer bg-emerald-600 text-white p-3 rounded-full shadow-md hover:bg-emerald-700 active:scale-95 transition-all flex flex-col items-center justify-center w-14 h-14"><Camera size={20} /></label>
                 <input type="file" multiple accept="image/*" className="hidden" id="survey-upload" onChange={handlePhotoSelection} /><label htmlFor="survey-upload" className="cursor-pointer bg-white border border-slate-200 text-slate-700 p-3 rounded-full shadow-sm hover:bg-slate-50 active:scale-95 transition-all flex flex-col items-center justify-center w-14 h-14"><UploadCloud size={20} /></label>
               </div>
-              <p className="text-xs font-bold text-blue-800">Kamera Atau Galeri</p>
+              <p className="text-xs font-bold text-emerald-800">Kamera Atau Galeri</p>
             </div>
-            {photoPreviews.length > 0 && ( <div className="mt-4 pt-4 border-t border-blue-200/60"><p className="text-[10px] font-bold text-slate-500 mb-2">{photoPreviews.length} Foto Siap Unggah:</p><div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">{photoPreviews.map((url, idx) => ( <div key={idx} className="relative w-16 h-16 shrink-0 rounded-lg overflow-hidden border border-slate-200 shadow-sm"><img src={url} alt={`Preview ${idx}`} className="w-full h-full object-cover" /><button onClick={() => handleRemovePhoto(idx)} className="absolute top-0.5 right-0.5 bg-red-500 text-white p-0.5 rounded-full shadow-sm scale-75 hover:bg-red-600"><X size={12} /></button></div> ))}</div></div> )}
+            {photoPreviews.length > 0 && ( <div className="mt-4 pt-4 border-t border-emerald-200/60"><p className="text-[10px] font-bold text-slate-500 mb-2">{photoPreviews.length} Foto Siap Unggah:</p><div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">{photoPreviews.map((url, idx) => ( <div key={idx} className="relative w-16 h-16 shrink-0 rounded-lg overflow-hidden border border-slate-200 shadow-sm"><img src={url} alt={`Preview ${idx}`} className="w-full h-full object-cover" /><button onClick={() => handleRemovePhoto(idx)} className="absolute top-0.5 right-0.5 bg-red-500 text-white p-0.5 rounded-full shadow-sm scale-75 hover:bg-red-600"><X size={12} /></button></div> ))}</div></div> )}
           </div>
         </div>
         <div className="mt-4">
-          {isSubmitting && ( <div className="mb-3"><div className="flex justify-between items-center mb-1"><span className="text-[10px] font-bold text-blue-700">Mengunggah ke G-Drive...</span><span className="text-[10px] font-bold text-blue-700">{uploadProgress}%</span></div><div className="w-full bg-blue-100 rounded-full h-2.5 overflow-hidden"><div className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div></div></div> )}
-          <button disabled={isSubmitting} onClick={handleSaveData} className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl active:bg-blue-700 shadow-md transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-wait"><UploadCloud size={18} /> {isSubmitting ? 'Memproses File...' : 'Buat Folder & Unggah Data'}</button>
+          {isSubmitting && ( <div className="mb-3"><div className="flex justify-between items-center mb-1"><span className="text-[10px] font-bold text-emerald-700">Mengunggah ke G-Drive...</span><span className="text-[10px] font-bold text-emerald-700">{uploadProgress}%</span></div><div className="w-full bg-emerald-100 rounded-full h-2.5 overflow-hidden"><div className="bg-emerald-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div></div></div> )}
+          <button disabled={isSubmitting} onClick={handleSaveData} className="w-full bg-emerald-600 text-white font-bold py-3.5 rounded-xl active:bg-emerald-700 shadow-md transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-wait"><UploadCloud size={18} /> {isSubmitting ? 'Memproses File...' : 'Buat Folder & Unggah Data'}</button>
         </div>
       </div>
     </div>
@@ -1446,7 +1464,7 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
               body: JSON.stringify({ action: "uploadCatalog", folderPath: gdriveFolder, fileName: namaFile, title: namaFile, fileData: { name: namaFile, mimeType: 'application/pdf', base64: base64Str } }),
             });
             const result = await response.json();
-            if(result.status === 'success'){ handleAddActivity(`Upload Laporan PDF HD "${selectedProject}" ke G-Drive`, 'Cloud', 'text-blue-500', 'bg-blue-50'); } else { throw new Error(result.message); }
+            if(result.status === 'success'){ handleAddActivity(`Upload Laporan PDF HD "${selectedProject}" ke G-Drive`, 'Cloud', 'text-emerald-500', 'bg-emerald-50'); } else { throw new Error(result.message); }
        }
        setUploadProgress(100);
        setTimeout(() => { setIsExporting(false); setShowExportModal(false); setUploadProgress(0); element.style.display = 'none'; alert("Proses Ekspor Selesai!"); }, 500);
@@ -1464,7 +1482,7 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase">Pilih Proyek</label>
-            <input type="text" list="ppt-project-list" value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} placeholder="Cari proyek..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" list="ppt-project-list" value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} placeholder="Cari proyek..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500" />
             <datalist id="ppt-project-list">{databaseProyek.map((proj, idx) => <option key={idx} value={proj} />)}</datalist>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -1480,13 +1498,13 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
             <div className="absolute top-2 left-2 z-10 flex gap-1">
               <input type="file" id="cover-cam" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleImageUpload(e, 'cover')} />
               <input type="file" id="cover-gal" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'cover')} />
-              {coverPhoto.url ? ( <button onClick={() => setCoverPhoto({url: null, x:50, y:50})} className="bg-red-500/90 text-white p-1.5 rounded-md shadow-sm hover:bg-red-600 transition-colors"><X size={14} strokeWidth={3} /></button> ) : ( <><label htmlFor="cover-cam" className="cursor-pointer bg-blue-600/90 text-white px-2 py-1.5 rounded-md shadow-sm text-[10px] font-bold flex items-center gap-1"><Camera size={12} /> Kamera</label><label htmlFor="cover-gal" className="cursor-pointer bg-slate-600/90 text-white px-2 py-1.5 rounded-md shadow-sm text-[10px] font-bold flex items-center gap-1"><UploadCloud size={12} /> Galeri</label></> )}
+              {coverPhoto.url ? ( <button onClick={() => setCoverPhoto({url: null, x:50, y:50})} className="bg-red-500/90 text-white p-1.5 rounded-md shadow-sm hover:bg-red-600 transition-colors"><X size={14} strokeWidth={3} /></button> ) : ( <><label htmlFor="cover-cam" className="cursor-pointer bg-emerald-600/90 text-white px-2 py-1.5 rounded-md shadow-sm text-[10px] font-bold flex items-center gap-1"><Camera size={12} /> Kamera</label><label htmlFor="cover-gal" className="cursor-pointer bg-slate-600/90 text-white px-2 py-1.5 rounded-md shadow-sm text-[10px] font-bold flex items-center gap-1"><UploadCloud size={12} /> Galeri</label></> )}
             </div>
             <div className="absolute top-2 right-2 w-14 h-14 bg-white/80 backdrop-blur-sm border-2 border-dashed border-slate-300 rounded-md z-10 flex flex-col items-center justify-center overflow-hidden">
               <input type="file" id="logo-cam" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleImageUpload(e, 'logo')} /><input type="file" id="logo-gal" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'logo')} />
-              {logoPhoto ? ( <><img src={logoPhoto} className="w-full h-full object-contain p-1" /><button onClick={() => setLogoPhoto(null)} className="absolute -top-1 -right-1 bg-red-500 text-white p-0.5 rounded-full scale-75"><X size={12} /></button></> ) : ( <><span className="text-[6px] font-bold text-slate-500 mb-0.5">LOGO</span><div className="flex gap-1"><label htmlFor="logo-cam" className="cursor-pointer p-1 bg-blue-100 text-blue-600 rounded"><Camera size={10} /></label><label htmlFor="logo-gal" className="cursor-pointer p-1 bg-slate-200 text-slate-600 rounded"><UploadCloud size={10} /></label></div></> )}
+              {logoPhoto ? ( <><img src={logoPhoto} className="w-full h-full object-contain p-1" /><button onClick={() => setLogoPhoto(null)} className="absolute -top-1 -right-1 bg-red-500 text-white p-0.5 rounded-full scale-75"><X size={12} /></button></> ) : ( <><span className="text-[6px] font-bold text-slate-500 mb-0.5">LOGO</span><div className="flex gap-1"><label htmlFor="logo-cam" className="cursor-pointer p-1 bg-emerald-100 text-emerald-600 rounded"><Camera size={10} /></label><label htmlFor="logo-gal" className="cursor-pointer p-1 bg-slate-200 text-slate-600 rounded"><UploadCloud size={10} /></label></div></> )}
             </div>
-            <div className="relative z-10 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-3 pt-8 text-white w-full pointer-events-none"><h3 className="text-sm font-black leading-tight">{selectedProject || 'Nama Proyek'}</h3><p className="text-[10px] font-semibold text-blue-200">{reportType}</p></div>
+            <div className="relative z-10 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-3 pt-8 text-white w-full pointer-events-none"><h3 className="text-sm font-black leading-tight">{selectedProject || 'Nama Proyek'}</h3><p className="text-[10px] font-semibold text-emerald-200">{reportType}</p></div>
           </div>
         </div>
 
@@ -1498,12 +1516,12 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
             <div key={slide.id} className="relative mt-4 bg-slate-50 p-2 rounded-xl border border-slate-200 shadow-sm">
               <div className="flex justify-between items-end mb-2 px-1"><span className="text-[10px] font-bold text-slate-500">Lembar {slideIndex + 1}</span>{slideIndex > 0 && <button onClick={() => setSlides(slides.filter((_, i) => i !== slideIndex))} className="text-[10px] text-red-500 font-bold hover:underline">Hapus Slide</button>}</div>
               <div className="w-full aspect-[16/9] bg-white border border-slate-200 rounded shadow-sm flex flex-col p-1.5 relative">
-                <div className="flex justify-between items-end border-b-2 border-blue-600 pb-1 mb-1"><span className="text-[7px] font-bold text-slate-800 uppercase truncate max-w-[60%]">{selectedProject || 'NAMA PROYEK'}</span><span className="text-[6px] font-semibold text-slate-500">{reportDate}</span></div>
+                <div className="flex justify-between items-end border-b-2 border-emerald-600 pb-1 mb-1"><span className="text-[7px] font-bold text-slate-800 uppercase truncate max-w-[60%]">{selectedProject || 'NAMA PROYEK'}</span><span className="text-[6px] font-semibold text-slate-500">{reportDate}</span></div>
                 <div className="flex-1 grid grid-cols-3 gap-1.5 min-h-0">
                   <div className="col-span-1 flex flex-col gap-1 min-h-0">
                     <div className="flex-1 bg-slate-50 rounded border-2 border-dashed border-slate-300 relative overflow-hidden flex items-center justify-center">
                       <input type="file" id={`layout-cam-${slideIndex}`} accept="image/*" capture="environment" className="hidden" onChange={(e) => handleImageUpload(e, 'layout', slideIndex)} /><input type="file" id={`layout-gal-${slideIndex}`} accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'layout', slideIndex)} />
-                      {slide.layoutPhoto.url ? ( <><DraggableImage src={slide.layoutPhoto.url} x={slide.layoutPhoto.x} y={slide.layoutPhoto.y} mode="contain" onChange={(nx, ny) => updatePhotoPan('layout', nx, ny, slideIndex)} /><button onClick={() => {const s=[...slides]; s[slideIndex].layoutPhoto.url=null; setSlides(s)}} className="absolute top-0.5 right-0.5 bg-red-500/90 text-white p-0.5 rounded-full scale-75 z-20"><X size={12} strokeWidth={3} /></button></> ) : ( <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-1"><span className="text-[5px] font-bold">Denah / Layout</span><div className="flex gap-1"><label htmlFor={`layout-cam-${slideIndex}`} className="cursor-pointer p-1 bg-blue-100 text-blue-600 rounded"><Camera size={10} /></label><label htmlFor={`layout-gal-${slideIndex}`} className="cursor-pointer p-1 bg-slate-200 text-slate-600 rounded"><UploadCloud size={10} /></label></div></div> )}
+                      {slide.layoutPhoto.url ? ( <><DraggableImage src={slide.layoutPhoto.url} x={slide.layoutPhoto.x} y={slide.layoutPhoto.y} mode="contain" onChange={(nx, ny) => updatePhotoPan('layout', nx, ny, slideIndex)} /><button onClick={() => {const s=[...slides]; s[slideIndex].layoutPhoto.url=null; setSlides(s)}} className="absolute top-0.5 right-0.5 bg-red-500/90 text-white p-0.5 rounded-full scale-75 z-20"><X size={12} strokeWidth={3} /></button></> ) : ( <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-1"><span className="text-[5px] font-bold">Denah / Layout</span><div className="flex gap-1"><label htmlFor={`layout-cam-${slideIndex}`} className="cursor-pointer p-1 bg-emerald-100 text-emerald-600 rounded"><Camera size={10} /></label><label htmlFor={`layout-gal-${slideIndex}`} className="cursor-pointer p-1 bg-slate-200 text-slate-600 rounded"><UploadCloud size={10} /></label></div></div> )}
                     </div>
                     <div className="h-1/3 min-h-[20px]"><textarea placeholder="Keterangan..." value={slide.description} onChange={(e) => handleDescriptionChange(slideIndex, e.target.value)} className="w-full h-full bg-slate-50 border border-slate-200 rounded text-[6px] p-1 text-slate-700 outline-none resize-none" /></div>
                   </div>
@@ -1511,7 +1529,7 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
                     {slide.progressPhotos.map((photoObj, photoIndex) => (
                       <div key={photoIndex} className="bg-slate-50 rounded border-2 border-dashed border-slate-300 relative overflow-hidden flex items-center justify-center">
                         <input type="file" id={`prog-cam-${slideIndex}-${photoIndex}`} accept="image/*" capture="environment" className="hidden" onChange={(e) => handleImageUpload(e, 'progress', slideIndex, photoIndex)} /><input type="file" id={`prog-gal-${slideIndex}-${photoIndex}`} accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'progress', slideIndex, photoIndex)} />
-                        {photoObj.url ? ( <><DraggableImage src={photoObj.url} x={photoObj.x} y={photoObj.y} onChange={(nx, ny) => updatePhotoPan('progress', nx, ny, slideIndex, photoIndex)} /><button onClick={() => {const s=[...slides]; s[slideIndex].progressPhotos[photoIndex].url=null; setSlides(s)}} className="absolute top-0.5 right-0.5 bg-red-500/90 text-white p-0.5 rounded-full scale-75 z-20"><X size={10} strokeWidth={3} /></button></> ) : ( <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-1"><span className="text-[5px] font-bold">Slot Foto</span><div className="flex gap-1"><label htmlFor={`prog-cam-${slideIndex}-${photoIndex}`} className="cursor-pointer p-1 bg-blue-50 text-blue-500 rounded"><Camera size={8} /></label><label htmlFor={`prog-gal-${slideIndex}-${photoIndex}`} className="cursor-pointer p-1 bg-slate-200 text-slate-500 rounded"><UploadCloud size={8} /></label></div></div> )}
+                        {photoObj.url ? ( <><DraggableImage src={photoObj.url} x={photoObj.x} y={photoObj.y} onChange={(nx, ny) => updatePhotoPan('progress', nx, ny, slideIndex, photoIndex)} /><button onClick={() => {const s=[...slides]; s[slideIndex].progressPhotos[photoIndex].url=null; setSlides(s)}} className="absolute top-0.5 right-0.5 bg-red-500/90 text-white p-0.5 rounded-full scale-75 z-20"><X size={10} strokeWidth={3} /></button></> ) : ( <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-1"><span className="text-[5px] font-bold">Slot Foto</span><div className="flex gap-1"><label htmlFor={`prog-cam-${slideIndex}-${photoIndex}`} className="cursor-pointer p-1 bg-emerald-50 text-emerald-500 rounded"><Camera size={8} /></label><label htmlFor={`prog-gal-${slideIndex}-${photoIndex}`} className="cursor-pointer p-1 bg-slate-200 text-slate-500 rounded"><UploadCloud size={8} /></label></div></div> )}
                       </div>
                     ))}
                   </div>
@@ -1519,10 +1537,10 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
               </div>
             </div>
           ))}
-          <div className="flex gap-2 pt-2"><button onClick={handleAddSlide} className="flex-1 bg-slate-100 border border-slate-200 text-slate-700 font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-xs hover:bg-slate-200 transition-all"><PlusCircle size={14} /> Tambah Slide</button><button onClick={handleDuplicateLastSlide} className="flex-1 bg-blue-50 border border-blue-200 text-blue-700 font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-[11px] hover:bg-blue-100 active:scale-95 transition-all"><Copy size={14} /> Duplikat</button></div>
+          <div className="flex gap-2 pt-2"><button onClick={handleAddSlide} className="flex-1 bg-slate-100 border border-slate-200 text-slate-700 font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-xs hover:bg-slate-200 transition-all"><PlusCircle size={14} /> Tambah Slide</button><button onClick={handleDuplicateLastSlide} className="flex-1 bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-[11px] hover:bg-emerald-100 active:scale-95 transition-all"><Copy size={14} /> Duplikat</button></div>
         </div>
 
-        <button onClick={() => setShowExportModal(true)} className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl mt-6 shadow-md flex justify-center items-center gap-2 text-sm"><FileText size={18} /> Ekspor Dokumen HD</button>
+        <button onClick={() => setShowExportModal(true)} className="w-full bg-emerald-600 text-white font-bold py-4 rounded-xl mt-6 shadow-md flex justify-center items-center gap-2 text-sm"><FileText size={18} /> Ekspor Dokumen HD</button>
       </div>
 
       {showExportModal && (
@@ -1532,11 +1550,11 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
             <h3 className="text-lg font-black text-slate-800 mb-5">Simpan Laporan HD</h3>
             <div className="space-y-3">
               <button disabled={isExporting} onClick={() => handleExecuteExport('local')} className="w-full p-4 rounded-xl border border-slate-200 flex items-center gap-4 text-left hover:bg-slate-50 transition-all"><div className="p-3 bg-slate-100 text-slate-600 rounded-full"><Laptop size={20} /></div><div><p className="text-sm font-bold text-slate-800">Simpan Lokal (PDF)</p><p className="text-[10px] text-slate-500">Unduh format A4 Landscape per slide.</p></div></button>
-              <button disabled={isExporting} onClick={() => handleExecuteExport('cloud')} className="w-full p-4 rounded-xl border border-blue-200 flex items-center gap-4 bg-blue-50 text-left hover:bg-blue-100 transition-all"><div className="p-3 bg-blue-600 text-white rounded-full"><Cloud size={20} /></div><div><p className="text-sm font-bold text-blue-800">Simpan ke G-Drive</p><p className="text-[10px] text-blue-600">Kirim PDF utuh ke Cloud Proyek.</p></div></button>
+              <button disabled={isExporting} onClick={() => handleExecuteExport('cloud')} className="w-full p-4 rounded-xl border border-emerald-200 flex items-center gap-4 bg-emerald-50 text-left hover:bg-emerald-100 transition-all"><div className="p-3 bg-emerald-600 text-white rounded-full"><Cloud size={20} /></div><div><p className="text-sm font-bold text-emerald-800">Simpan ke G-Drive</p><p className="text-[10px] text-emerald-600">Kirim PDF utuh ke Cloud Proyek.</p></div></button>
               <button disabled={isExporting} onClick={() => handleExecuteExport('both')} className="w-full p-4 rounded-xl border border-green-200 flex items-center gap-4 bg-green-50 text-left hover:bg-green-100 transition-all"><div className="p-3 bg-green-500 text-white rounded-full"><CheckCircle2 size={20} /></div><div><p className="text-sm font-bold text-green-800">Simpan Keduanya</p><p className="text-[10px] text-green-600">Unduh lokal & langsung ke Cloud.</p></div></button>
             </div>
             {isExporting && (
-              <div className="mt-5"><div className="flex justify-between text-[10px] font-bold text-blue-700 mb-1"><span>Memproses Render PDF HD...</span><span>{uploadProgress}%</span></div><div className="w-full bg-blue-100 rounded-full h-2.5 overflow-hidden"><div className="bg-blue-600 h-2.5 transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div></div></div>
+              <div className="mt-5"><div className="flex justify-between text-[10px] font-bold text-emerald-700 mb-1"><span>Memproses Render PDF HD...</span><span>{uploadProgress}%</span></div><div className="w-full bg-emerald-100 rounded-full h-2.5 overflow-hidden"><div className="bg-emerald-600 h-2.5 transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div></div></div>
             )}
           </div>
         </div>
@@ -1549,15 +1567,15 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
           <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', background: 'linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.4), transparent)', color: 'white', padding: '60px 45px' }}>
              {logoPhoto && ( <div style={{ position: 'absolute', top: '-110px', right: '45px', background: 'rgba(255,255,255,0.95)', padding: '12px', borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}><div style={{ width: '90px', height: '90px', backgroundImage: `url(${logoPhoto})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} /></div> )}
              <h1 style={{ fontSize: '56px', margin: '0 0 12px 0', fontWeight: '900', letterSpacing: '-1px' }}>{selectedProject || 'NAMA PROYEK'}</h1>
-             <p style={{ fontSize: '24px', margin: 0, color: '#93c5fd', fontWeight: '600' }}>{reportType}</p>
+             <p style={{ fontSize: '24px', margin: 0, color: '#34d399', fontWeight: '600' }}>{reportType}</p>
              <p style={{ fontSize: '14px', marginTop: '24px', opacity: 0.8 }}>Tanggal Laporan: {reportDate}</p>
           </div>
         </div>
         {slides.map((s, idx) => (
           <div key={idx} className="pdf-page-break" style={{ width: '297mm', minHeight: '200mm', padding: '10mm 15mm', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', boxSizing: 'border-box' }}>
-            <div style={{ borderBottom: '4px solid #2563eb', paddingBottom: '20px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+            <div style={{ borderBottom: '4px solid #059669', paddingBottom: '20px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                <span style={{ fontWeight: '900', fontSize: '28px', textTransform: 'uppercase', color: '#1e293b', letterSpacing: '-1px' }}>{selectedProject || 'NAMA PROYEK'}</span>
-               <div style={{ textAlign: 'right' }}><span style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>{reportDate}</span><span style={{ fontSize: '16px', color: '#3b82f6', fontWeight: '800' }}>HALAMAN {idx + 1}</span></div>
+               <div style={{ textAlign: 'right' }}><span style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>{reportDate}</span><span style={{ fontSize: '16px', color: '#059669', fontWeight: '800' }}>HALAMAN {idx + 1}</span></div>
             </div>
             <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1.2fr 2fr', gap: '24px', minHeight: 0 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', minHeight: 0 }}>
@@ -1639,26 +1657,26 @@ function PeminjamanKatalogView({ user, catalogItems, catalogLoans, handleAddActi
       </div>
       <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
         <button onClick={onShowCatalog} className="px-3 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800">Daftar Katalog</button>
-        <button className="px-3 py-2 rounded-lg text-xs font-bold bg-white text-blue-600 shadow-sm">Pinjam Katalog <span className="ml-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] text-orange-700">{activeLoans.length}</span></button>
+        <button className="px-3 py-2 rounded-lg text-xs font-bold bg-white text-emerald-600 shadow-sm">Pinjam Katalog <span className="ml-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] text-orange-700">{activeLoans.length}</span></button>
       </div>
 
       {isAddingLoan ? (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 space-y-5">
           <div className="flex items-center justify-between"><div><h3 className="font-bold text-slate-800">Catat Peminjaman Katalog</h3><p className="text-[10px] text-slate-500 mt-1">PIC bertanggung jawab sampai katalog dikembalikan.</p></div><button onClick={resetLoanForm} className="text-slate-400 hover:text-slate-700"><X size={20}/></button></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Katalog yang dipinjam</label><select value={newLoan.catalogId} onChange={e => setNewLoan({ ...newLoan, catalogId: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"><option value="">Pilih katalog tersedia</option>{availableCatalogs.map(item => <option key={item.id} value={item.id}>{item.title} — {item.category}</option>)}</select>{availableCatalogs.length === 0 && <p className="text-[10px] text-orange-600 mt-1.5">Semua katalog sedang dipinjam atau belum ada katalog.</p>}</div>
-            <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">PIC peminjam</label><div className="relative"><User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={newLoan.picName} onChange={e => setNewLoan({ ...newLoan, picName: e.target.value })} placeholder="Nama PIC yang bertanggung jawab" className="w-full pl-9 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div></div>
-            <div className="grid grid-cols-2 gap-2"><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tanggal pinjam</label><input type="date" value={newLoan.borrowDate} onChange={e => setNewLoan({ ...newLoan, borrowDate: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Jam pinjam</label><input type="time" value={newLoan.borrowTime} onChange={e => setNewLoan({ ...newLoan, borrowTime: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div></div>
-            <div className="grid grid-cols-2 gap-2"><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tanggal kembali</label><input type="date" value={newLoan.dueDate} onChange={e => setNewLoan({ ...newLoan, dueDate: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Jam kembali</label><input type="time" value={newLoan.dueTime} onChange={e => setNewLoan({ ...newLoan, dueTime: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div></div>
-            <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Keterangan <span className="normal-case font-medium">(opsional)</span></label><textarea rows="3" value={newLoan.note} onChange={e => setNewLoan({ ...newLoan, note: e.target.value })} placeholder="Contoh: keperluan presentasi klien" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none resize-none focus:ring-2 focus:ring-blue-500" /></div>
+            <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Katalog yang dipinjam</label><select value={newLoan.catalogId} onChange={e => setNewLoan({ ...newLoan, catalogId: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"><option value="">Pilih katalog tersedia</option>{availableCatalogs.map(item => <option key={item.id} value={item.id}>{item.title} — {item.category}</option>)}</select>{availableCatalogs.length === 0 && <p className="text-[10px] text-orange-600 mt-1.5">Semua katalog sedang dipinjam atau belum ada katalog.</p>}</div>
+            <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">PIC peminjam</label><div className="relative"><User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={newLoan.picName} onChange={e => setNewLoan({ ...newLoan, picName: e.target.value })} placeholder="Nama PIC yang bertanggung jawab" className="w-full pl-9 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" /></div></div>
+            <div className="grid grid-cols-2 gap-2"><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tanggal pinjam</label><input type="date" value={newLoan.borrowDate} onChange={e => setNewLoan({ ...newLoan, borrowDate: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" /></div><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Jam pinjam</label><input type="time" value={newLoan.borrowTime} onChange={e => setNewLoan({ ...newLoan, borrowTime: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" /></div></div>
+            <div className="grid grid-cols-2 gap-2"><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tanggal kembali</label><input type="date" value={newLoan.dueDate} onChange={e => setNewLoan({ ...newLoan, dueDate: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" /></div><div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Jam kembali</label><input type="time" value={newLoan.dueTime} onChange={e => setNewLoan({ ...newLoan, dueTime: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" /></div></div>
+            <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Keterangan <span className="normal-case font-medium">(opsional)</span></label><textarea rows="3" value={newLoan.note} onChange={e => setNewLoan({ ...newLoan, note: e.target.value })} placeholder="Contoh: keperluan presentasi klien" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none resize-none focus:ring-2 focus:ring-emerald-500" /></div>
           </div>
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100"><button disabled={isSubmitting} onClick={resetLoanForm} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50">Batal</button><button disabled={isSubmitting} onClick={handleSaveLoan} className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm disabled:opacity-50">{isSubmitting ? 'Menyimpan...' : 'Simpan Peminjaman'}</button></div>
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100"><button disabled={isSubmitting} onClick={resetLoanForm} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50">Batal</button><button disabled={isSubmitting} onClick={handleSaveLoan} className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm disabled:opacity-50">{isSubmitting ? 'Menyimpan...' : 'Simpan Peminjaman'}</button></div>
         </div>
       ) : (
         <>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-blue-50 border border-blue-100 rounded-2xl p-4">
-            <div className="flex gap-3"><AlertTriangle size={18} className="text-blue-600 shrink-0 mt-0.5"/><p className="text-[11px] leading-relaxed text-blue-800"><b>Aturan peminjaman:</b> katalog yang terlambat dan belum dikembalikan mengurangi <b>1 poin per hari</b> pada Kinerja PIC.</p></div>
-            <button onClick={() => setIsAddingLoan(true)} className="shrink-0 bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm hover:bg-blue-700 flex items-center justify-center gap-1.5"><Plus size={16}/> Catat Pinjam</button>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
+            <div className="flex gap-3"><AlertTriangle size={18} className="text-emerald-600 shrink-0 mt-0.5"/><p className="text-[11px] leading-relaxed text-emerald-800"><b>Aturan peminjaman:</b> katalog yang terlambat dan belum dikembalikan mengurangi <b>1 poin per hari</b> pada Kinerja PIC.</p></div>
+            <button onClick={() => setIsAddingLoan(true)} className="shrink-0 bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm hover:bg-emerald-700 flex items-center justify-center gap-1.5"><Plus size={16}/> Catat Pinjam</button>
           </div>
           <div className="space-y-3">
             {catalogLoans.length === 0 ? <div className="text-center py-10 bg-white rounded-2xl border border-slate-200 shadow-sm"><FolderOpen size={32} className="mx-auto text-slate-300 mb-2"/><p className="text-sm font-bold text-slate-600">Belum ada peminjaman</p><p className="text-xs text-slate-400 mt-1">Catat peminjaman katalog pertama Anda.</p></div> : catalogLoans.map(loan => {
@@ -1728,8 +1746,8 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
 
       const catalogPayload = { category: newData.category, title: newData.title, addedBy: user.name, date: newData.date, source: newData.source, tags: newData.tags, webLink: finalWebLink, fileLink: finalFileLink, desc: newData.desc, fileName: newData.fileName, updatedAt: new Date().toISOString() };
 
-      if (editingCatalogId) { await updateDoc(getDoc('catalogs', editingCatalogId), catalogPayload); handleAddActivity(`Mengedit katalog "${newData.title}"`, 'Edit2', 'text-blue-500', 'bg-blue-50'); } 
-      else { catalogPayload.createdAt = new Date().toISOString(); await addDoc(getCol('catalogs'), catalogPayload); handleAddActivity(`Menambahkan katalog "${newData.title}"`, 'FolderPlus', 'text-blue-500', 'bg-blue-50'); }
+      if (editingCatalogId) { await updateDoc(getDoc('catalogs', editingCatalogId), catalogPayload); handleAddActivity(`Mengedit katalog "${newData.title}"`, 'Edit2', 'text-emerald-500', 'bg-emerald-50'); } 
+      else { catalogPayload.createdAt = new Date().toISOString(); await addDoc(getCol('catalogs'), catalogPayload); handleAddActivity(`Menambahkan katalog "${newData.title}"`, 'FolderPlus', 'text-emerald-500', 'bg-emerald-50'); }
 
       setUploadProgress(100);
       setTimeout(() => { setIsSubmitting(false); setUploadProgress(0); setIsAddingData(false); setEditingCatalogId(null); setSelectedCatalogFile(null); setNewData({title: '', date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: ''}); }, 500);
@@ -1766,34 +1784,34 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
   if (isAddingData) {
     return (
       <div className="space-y-5 animation-fade-in">
-        <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">{editingCatalogId ? <Edit2 size={20} className="text-blue-600"/> : <Plus size={20} className="text-blue-600"/>} {editingCatalogId ? 'Edit Data Katalog' : 'Input Baru'}</h2><button onClick={() => { setIsAddingData(false); setEditingCatalogId(null); setSelectedCatalogFile(null); }} className="text-slate-400 hover:text-slate-600"><X size={24} /></button></div>
+        <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">{editingCatalogId ? <Edit2 size={20} className="text-emerald-600"/> : <Plus size={20} className="text-emerald-600"/>} {editingCatalogId ? 'Edit Data Katalog' : 'Input Baru'}</h2><button onClick={() => { setIsAddingData(false); setEditingCatalogId(null); setSelectedCatalogFile(null); }} className="text-slate-400 hover:text-slate-600"><X size={24} /></button></div>
         <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 space-y-5">
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Nama Item</label><input type="text" value={newData.title} onChange={e => setNewData({...newData, title: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-            <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tanggal</label><input type="date" value={newData.date} onChange={e => setNewData({...newData, date: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+            <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Nama Item</label><input type="text" value={newData.title} onChange={e => setNewData({...newData, title: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" /></div>
+            <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tanggal</label><input type="date" value={newData.date} onChange={e => setNewData({...newData, date: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" /></div>
             <div className="col-span-2 sm:col-span-1">
               <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Jenis</label>
-              <div className="relative"><select value={newData.category} onChange={e => setNewData({...newData, category: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none">{filterCategories.filter(c => c !== 'Semua').map(cat => <option key={cat} value={cat}>{cat}</option>)}</select><ChevronRight size={16} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-slate-400 pointer-events-none"/></div>
+              <div className="relative"><select value={newData.category} onChange={e => setNewData({...newData, category: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none appearance-none">{filterCategories.filter(c => c !== 'Semua').map(cat => <option key={cat} value={cat}>{cat}</option>)}</select><ChevronRight size={16} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-slate-400 pointer-events-none"/></div>
             </div>
-            <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Sumber</label><input type="text" value={newData.source} onChange={e => setNewData({...newData, source: e.target.value})} placeholder="Vendor/Penerbit" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+            <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Sumber</label><input type="text" value={newData.source} onChange={e => setNewData({...newData, source: e.target.value})} placeholder="Vendor/Penerbit" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" /></div>
           </div>
           <div>
             <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Kelengkapan</label>
             <div className="flex flex-wrap gap-2">{kelengkapanOptions.map(tag => ( <button key={tag} onClick={() => toggleTag(tag)} className={`px-4 py-2 rounded-lg text-xs font-medium border transition-colors ${newData.tags.includes(tag) ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{tag}</button> ))}</div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tautan Website / Referensi</label><input type="url" value={newData.webLink} onChange={e => setNewData({...newData, webLink: e.target.value})} placeholder="Ketik www. atau tempel tautan" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-            <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tautan File Digital (G-Drive)</label><input type="url" value={newData.fileLink} onChange={e => setNewData({...newData, fileLink: e.target.value})} placeholder="Pilih otomatis atau tempel link..." className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+            <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tautan Website / Referensi</label><input type="url" value={newData.webLink} onChange={e => setNewData({...newData, webLink: e.target.value})} placeholder="Ketik www. atau tempel tautan" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" /></div>
+            <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tautan File Digital (G-Drive)</label><input type="url" value={newData.fileLink} onChange={e => setNewData({...newData, fileLink: e.target.value})} placeholder="Pilih otomatis atau tempel link..." className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" /></div>
             <div className="col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Penginput</label><input type="text" value={user.name} disabled className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-500 outline-none cursor-not-allowed" /></div>
           </div>
           <div>
             <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Atau Unggah Dokumen Langsung</label>
-            <div className="border-2 border-dashed border-blue-200 bg-blue-50/30 rounded-xl p-4 flex flex-col items-center justify-center text-center"><Upload size={20} className="text-blue-500 mb-2" /><p className="text-xs font-bold text-blue-700">{newData.fileName || 'Pilih File PDF / Dokumen'}</p><p className="text-[9px] text-slate-500 mt-1 max-w-[250px]">Otomatis diunggah ke G-Drive: <b>APP DKPM &gt; Library Katalog</b></p><input type="file" accept=".pdf,.doc,.docx" onChange={handleFileUpload} className="hidden" ref={fileInputRef} /><button onClick={() => fileInputRef.current?.click()} className="mt-3 bg-white border border-blue-200 text-blue-600 px-4 py-1.5 rounded-lg text-[10px] font-bold hover:bg-blue-50 transition-colors">Jelajahi File</button></div>
+            <div className="border-2 border-dashed border-emerald-200 bg-emerald-50/30 rounded-xl p-4 flex flex-col items-center justify-center text-center"><Upload size={20} className="text-emerald-500 mb-2" /><p className="text-xs font-bold text-emerald-700">{newData.fileName || 'Pilih File PDF / Dokumen'}</p><p className="text-[9px] text-slate-500 mt-1 max-w-[250px]">Otomatis diunggah ke G-Drive: <b>APP DKPM &gt; Library Katalog</b></p><input type="file" accept=".pdf,.doc,.docx" onChange={handleFileUpload} className="hidden" ref={fileInputRef} /><button onClick={() => fileInputRef.current?.click()} className="mt-3 bg-white border border-emerald-200 text-emerald-600 px-4 py-1.5 rounded-lg text-[10px] font-bold hover:bg-emerald-50 transition-colors">Jelajahi File</button></div>
           </div>
-          <div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Keterangan</label><textarea rows="3" value={newData.desc} onChange={e => setNewData({...newData, desc: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
+          <div><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Keterangan</label><textarea rows="3" value={newData.desc} onChange={e => setNewData({...newData, desc: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none" /></div>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 flex-col sm:flex-row">
-            {isSubmitting && ( <div className="flex-1 w-full flex flex-col justify-center pr-4"><div className="flex justify-between items-center mb-1"><span className="text-[10px] font-bold text-blue-700">Menyimpan...</span><span className="text-[10px] font-bold text-blue-700">{uploadProgress}%</span></div><div className="w-full bg-blue-100 rounded-full h-2 overflow-hidden"><div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div></div></div> )}
-            <div className="flex gap-2"><button disabled={isSubmitting} onClick={() => { setIsAddingData(false); setEditingCatalogId(null); setSelectedCatalogFile(null); }} className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50">Batal</button><button disabled={isSubmitting} onClick={handleSaveKatalog} className="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-md hover:bg-blue-700 transition-all disabled:opacity-50 whitespace-nowrap">{isSubmitting ? 'Memproses...' : (editingCatalogId ? 'Perbarui Data' : 'Simpan ke Cloud')}</button></div>
+            {isSubmitting && ( <div className="flex-1 w-full flex flex-col justify-center pr-4"><div className="flex justify-between items-center mb-1"><span className="text-[10px] font-bold text-emerald-700">Menyimpan...</span><span className="text-[10px] font-bold text-emerald-700">{uploadProgress}%</span></div><div className="w-full bg-emerald-100 rounded-full h-2 overflow-hidden"><div className="bg-emerald-600 h-2 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div></div></div> )}
+            <div className="flex gap-2"><button disabled={isSubmitting} onClick={() => { setIsAddingData(false); setEditingCatalogId(null); setSelectedCatalogFile(null); }} className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50">Batal</button><button disabled={isSubmitting} onClick={handleSaveKatalog} className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl shadow-md hover:bg-emerald-700 transition-all disabled:opacity-50 whitespace-nowrap">{isSubmitting ? 'Memproses...' : (editingCatalogId ? 'Perbarui Data' : 'Simpan ke Cloud')}</button></div>
           </div>
         </div>
       </div>
@@ -1806,18 +1824,18 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
     <div className="space-y-5 animation-fade-in">
       <div className="flex justify-between items-start">
         <div><h2 className="text-xl font-bold text-slate-800">Daftar Katalog</h2><p className="text-xs font-medium text-slate-500 mt-1">Tersinkronisasi dengan Database</p></div>
-        <div className="flex gap-2"><button onClick={() => { setNewData({title: '', date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: ''}); setEditingCatalogId(null); setIsAddingData(true); }} className="bg-blue-600 text-white px-3 py-2.5 rounded-xl shadow-sm flex items-center gap-1.5 hover:bg-blue-700 active:scale-95 transition-all"><Plus size={16} strokeWidth={3} /><span className="text-xs font-bold pr-1">Tambah</span></button></div>
+        <div className="flex gap-2"><button onClick={() => { setNewData({title: '', date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: ''}); setEditingCatalogId(null); setIsAddingData(true); }} className="bg-emerald-600 text-white px-3 py-2.5 rounded-xl shadow-sm flex items-center gap-1.5 hover:bg-emerald-700 active:scale-95 transition-all"><Plus size={16} strokeWidth={3} /><span className="text-xs font-bold pr-1">Tambah</span></button></div>
       </div>
       <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
-        <button className="px-3 py-2 rounded-lg text-xs font-bold bg-white text-blue-600 shadow-sm">Daftar Katalog</button>
+        <button className="px-3 py-2 rounded-lg text-xs font-bold bg-white text-emerald-600 shadow-sm">Daftar Katalog</button>
         <button onClick={() => { setSelectedBorrowCatalogId(''); setActiveCatalogTab('peminjaman'); }} className="px-3 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800">Pinjam Katalog <span className="ml-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] text-orange-700">{catalogLoans.filter(loan => !loan.returnedAt).length}</span></button>
       </div>
       <div className="flex gap-2">
-        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input type="text" placeholder="Cari..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
+        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input type="text" placeholder="Cari..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm shadow-sm outline-none focus:ring-2 focus:ring-emerald-500" /></div>
         <div className="relative"><select value={sortOption} onChange={(e) => setSortOption(e.target.value)} className="appearance-none bg-white border border-slate-200 text-slate-700 pl-8 pr-6 py-2.5 rounded-xl shadow-sm text-[11px] font-bold outline-none cursor-pointer hover:bg-slate-50 w-full min-w-[130px]">{sortOptionsList.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select><ArrowUpDown size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" /></div>
       </div>
       <div className="flex overflow-x-auto no-scrollbar gap-2 pb-1">
-        {filterCategories.map(cat => ( <button key={cat} onClick={() => setActiveFilter(cat)} className={`px-3.5 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-colors ${activeFilter === cat ? 'bg-blue-100 text-blue-700 shadow-sm border border-blue-200' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{cat}</button> ))}
+        {filterCategories.map(cat => ( <button key={cat} onClick={() => setActiveFilter(cat)} className={`px-3.5 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-colors ${activeFilter === cat ? 'bg-emerald-100 text-emerald-700 shadow-sm border border-emerald-200' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{cat}</button> ))}
       </div>
       <div className="flex flex-col gap-3">
         {filteredItems.length > 0 ? (
@@ -1827,13 +1845,13 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
             return (
             <div key={item.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3 relative overflow-hidden group">
               <div className="flex justify-between items-start"><span className="text-[8px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-1 rounded-md">{item.category}</span>
-                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"><button onClick={() => handleEditCatalog(item)} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100" title="Edit Katalog"><Edit2 size={12}/></button><button onClick={() => handleDeleteCatalog(item.id, item.title)} className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100" title="Hapus Katalog"><Trash2 size={12}/></button></div>
+                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"><button onClick={() => handleEditCatalog(item)} className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100" title="Edit Katalog"><Edit2 size={12}/></button><button onClick={() => handleDeleteCatalog(item.id, item.title)} className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100" title="Hapus Katalog"><Trash2 size={12}/></button></div>
               </div>
               <div><h3 className="font-bold text-slate-800 text-base leading-tight mb-1.5 pr-10">{item.title}</h3><div className="flex items-center gap-3 text-[10px] font-medium text-slate-500"><span className="flex items-center gap-1.5"><User size={12} className="text-slate-400"/> {item.addedBy}</span><span className="flex items-center gap-1.5"><CalendarCheck size={12} className="text-slate-400"/> {item.date}</span></div></div>
               <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100"><p className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">Sumber</p><p className="text-xs font-bold text-slate-700">{item.source}</p></div>
               <div className="flex flex-wrap gap-1.5">{item.tags?.map((tag, idx) => ( <span key={idx} className="text-[9px] font-medium border border-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full bg-white">{tag}</span> ))}</div>
               <div className="flex gap-2 w-full pt-1">
-                <button onClick={() => hasWeb && window.open(hasWeb, '_blank')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all ${hasWeb ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 active:scale-95 cursor-pointer' : 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed'}`}>{hasWeb ? <><ExternalLink size={14} strokeWidth={2.5}/> Web / Referensi</> : <><AlertCircle size={14} strokeWidth={2.5}/> Web (N/A)</>}</button>
+                <button onClick={() => hasWeb && window.open(hasWeb, '_blank')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all ${hasWeb ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 active:scale-95 cursor-pointer' : 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed'}`}>{hasWeb ? <><ExternalLink size={14} strokeWidth={2.5}/> Web / Referensi</> : <><AlertCircle size={14} strokeWidth={2.5}/> Web (N/A)</>}</button>
                 <button onClick={() => hasFile && window.open(hasFile, '_blank')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all ${hasFile ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 active:scale-95 cursor-pointer' : 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed'}`}>{hasFile ? <><FileText size={14} strokeWidth={2.5}/> File Digital</> : <><AlertCircle size={14} strokeWidth={2.5}/> File (N/A)</>}</button>
               </div>
               <div className="pt-1 border-t border-slate-100">
@@ -1842,7 +1860,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
                     Sedang Dipinjam
                   </button>
                 ) : (
-                  <button onClick={() => handleDirectBorrow(item.id)} className="w-full py-2 bg-slate-800 hover:bg-blue-600 text-white text-xs font-bold rounded-xl transition-colors shadow-sm flex items-center justify-center gap-1.5">
+                  <button onClick={() => handleDirectBorrow(item.id)} className="w-full py-2 bg-slate-800 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl transition-colors shadow-sm flex items-center justify-center gap-1.5">
                     <FolderOpen size={14} /> Pinjam Katalog Ini
                   </button>
                 )}
@@ -1883,7 +1901,7 @@ function FormulirView({ user, forms, handleAddActivity }) {
         createdAt: new Date().toISOString(), 
         addedBy: user.name 
       });
-      handleAddActivity(`Menambahkan form/file "${formData.title}"`, 'FileText', 'text-blue-500', 'bg-blue-50');
+      handleAddActivity(`Menambahkan form/file "${formData.title}"`, 'FileText', 'text-emerald-500', 'bg-emerald-50');
       setIsAdding(false);
       setFormData({ title: '', desc: '', link: '' });
     } catch (e) {
@@ -1912,7 +1930,7 @@ function FormulirView({ user, forms, handleAddActivity }) {
           <p className="text-sm text-slate-500 mt-0.5">Pusat unduhan form dan template dokumen.</p>
         </div>
         {user.role === 'Admin' && (
-          <button onClick={() => setIsAdding(true)} className="bg-blue-600 text-white p-2 px-3 rounded-xl flex items-center gap-1 shadow-md hover:bg-blue-700 transition-colors">
+          <button onClick={() => setIsAdding(true)} className="bg-emerald-600 text-white p-2 px-3 rounded-xl flex items-center gap-1 shadow-md hover:bg-emerald-700 transition-colors">
             <Plus size={16} /><span className="text-xs font-bold">Tambah Form</span>
           </button>
         )}
@@ -1926,17 +1944,17 @@ function FormulirView({ user, forms, handleAddActivity }) {
           </div>
           <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">Judul Form / Dokumen</label>
-            <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Contoh: Form Cuti Karyawan / Template CAD" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Contoh: Form Cuti Karyawan / Template CAD" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
           <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">Link Download / Tautan G-Drive</label>
-            <input type="url" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} placeholder="https://..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="url" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} placeholder="https://..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
           <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">Keterangan / Instruksi</label>
-            <textarea rows="2" value={formData.desc} onChange={e => setFormData({...formData, desc: e.target.value})} placeholder="Penjelasan singkat mengenai fungsi file atau cara pengisian..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none resize-none focus:ring-2 focus:ring-blue-500" />
+            <textarea rows="2" value={formData.desc} onChange={e => setFormData({...formData, desc: e.target.value})} placeholder="Penjelasan singkat mengenai fungsi file atau cara pengisian..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none resize-none focus:ring-2 focus:ring-emerald-500" />
           </div>
-          <button disabled={isSubmitting} onClick={handleSave} className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl text-sm shadow-md hover:bg-blue-700 transition-all disabled:opacity-50">
+          <button disabled={isSubmitting} onClick={handleSave} className="w-full bg-emerald-600 text-white font-bold py-3.5 rounded-xl text-sm shadow-md hover:bg-emerald-700 transition-all disabled:opacity-50">
             {isSubmitting ? 'Menyimpan...' : 'Simpan Form'}
           </button>
         </div>
@@ -1952,7 +1970,7 @@ function FormulirView({ user, forms, handleAddActivity }) {
           forms.map(form => (
             <div key={form.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
               <div className="flex items-start gap-3">
-                <div className="p-3 bg-blue-50 text-blue-600 rounded-xl shrink-0"><FileText size={20} /></div>
+                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl shrink-0"><FileText size={20} /></div>
                 <div>
                   <h3 className="font-bold text-slate-800">{form.title}</h3>
                   {form.desc && <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{form.desc}</p>}
@@ -1962,7 +1980,7 @@ function FormulirView({ user, forms, handleAddActivity }) {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <a href={form.link.startsWith('http') ? form.link : `https://${form.link}`} target="_blank" rel="noopener noreferrer" className="bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 border border-slate-200 hover:border-blue-200">
+                <a href={form.link.startsWith('http') ? form.link : `https://${form.link}`} target="_blank" rel="noopener noreferrer" className="bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 border border-slate-200 hover:border-emerald-200">
                   <Download size={14} /> Unduh / Buka
                 </a>
                 {user.role === 'Admin' && (
@@ -1999,11 +2017,11 @@ function LoginScreen() {
 
   return (
     <div className="min-h-[100dvh] bg-slate-800 flex items-center justify-center p-0 sm:p-6 lg:p-10 font-sans relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-blue-500 rounded-full blur-3xl opacity-20"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-emerald-500 rounded-full blur-3xl opacity-20"></div>
       <div className="w-full min-h-[100dvh] sm:min-h-[680px] max-w-6xl bg-white shadow-2xl overflow-hidden sm:rounded-3xl flex flex-col relative z-10">
         <div className="flex-1 flex flex-col items-center justify-center p-8 sm:p-12 text-center">
-          <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm rotate-3"><FolderOpen size={40} strokeWidth={2.5} /></div>
-          <h1 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">ProSync</h1>
+          <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm rotate-3"><FolderOpen size={40} strokeWidth={2.5} /></div>
+          <h1 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">Design App DKPM</h1>
           <p className="text-sm text-slate-500 mb-12 font-medium">Production Database (Live)</p>
           <div className="w-full max-w-md bg-slate-50 p-6 rounded-3xl border border-slate-100">
             <h2 className="text-sm font-bold text-slate-700 mb-4">Akses Terbatas</h2>
@@ -2016,7 +2034,7 @@ function LoginScreen() {
             </button>
           </div>
         </div>
-        <div className="pb-8 pt-4 text-center"><p className="text-[10px] text-slate-400 font-medium">© 2026 Internal App</p></div>
+        <div className="pb-8 pt-4 text-center"><p className="text-[10px] text-slate-400 font-medium">© {new Date().getFullYear()} Internal App</p></div>
       </div>
     </div>
   );
