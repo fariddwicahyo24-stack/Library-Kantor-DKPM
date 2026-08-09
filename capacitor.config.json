@@ -1,7 +1,7 @@
 {
   "appId": "com.namaperusahaan.designdkpm",
   "appName": "Design App DKPM",
-  "webDir": "build",
+  "webDir": "dist", 
   "plugins": {
     "GoogleAuth": {
       "scopes": ["profile", "email"],

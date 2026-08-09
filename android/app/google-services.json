@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "307842167975-74uamu7u08alnlkb0d6spi3c6qruns16.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.designdkpm.app",
+            "certificate_hash": "4fb16ac54e1c098000e430fe94c9fda2864c1744"
+          }
+        },
+        {
           "client_id": "307842167975-0foliug05mlib7na003m7io1dk0hp0os.apps.googleusercontent.com",
           "client_type": 3
         }
