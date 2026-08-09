@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Design App DKPM</string>
+    <string name="title_activity_main">Design App DKPM</string>
+    <string name="package_name">com.designdkpm.app</string>
+    <string name="custom_url_scheme">com.designdkpm.app</string>
+    <string name="server_client_id">307842167975-0foliug05mlib7na003m7io1dk0hp0os.apps.googleusercontent.com</string>
+</resources>

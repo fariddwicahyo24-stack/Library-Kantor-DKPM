@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "307842167975",
+    "project_id": "library-kantor-dkpm",
+    "storage_bucket": "library-kantor-dkpm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:307842167975:android:11d15e07dfa42a60395782",
+        "android_client_info": {
+          "package_name": "com.designdkpm.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "307842167975-0foliug05mlib7na003m7io1dk0hp0os.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjv4TDQqCmy_O0aufGR4zV3x593jGKSEs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "307842167975-0foliug05mlib7na003m7io1dk0hp0os.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

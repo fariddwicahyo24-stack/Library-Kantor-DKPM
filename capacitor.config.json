@@ -1,0 +1,12 @@
+{
+  "appId": "com.namaperusahaan.designdkpm",
+  "appName": "Design App DKPM",
+  "webDir": "build",
+  "plugins": {
+    "GoogleAuth": {
+      "scopes": ["profile", "email"],
+      "serverClientId": "307842167975-0foliug05mlib7na003m7io1dk0hp0os.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": true
+    }
+  }
+}
