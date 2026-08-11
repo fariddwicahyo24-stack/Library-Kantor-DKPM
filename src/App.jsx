@@ -203,7 +203,7 @@ export default function App() {
       "fajarriskyy@gmail.com",
       "dec13790@gmail.com",
       "riyozein0@gmail.com",
-      "hrd@dkpm.co.id"
+      "yogichristianto.bsi@gmail.com"
     ];
 
     const initAuth = async () => {
