@@ -982,7 +982,8 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const yearlyTasksForKinerja = tasks.filter(task => {
-    if(!task.date) return false;
+    // FIX 1: Pengecualian tugas yang telah dihapus (diarsip/isDeleted = true)
+    if(!task.date || task.isDeleted) return false;
     return new Date(task.date).getFullYear().toString() === selectedYear;
   });
   const overdueCatalogLoans = catalogLoans.filter(loan => {
@@ -1018,13 +1019,16 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
 
       picTasks.forEach(task => {
         if (!task.date || !task.time) return;
-        const deadline = new Date(`${task.date}T${task.time}`);
+        
+        // FIX 2: Menambahkan ':00' pada parameter deadline agar format JS Date utuh dan mencegah "Invalid Date" di browser berbasis WebKit (Safari/iOS) yang menyebabkan penguraian NaN
+        const deadline = new Date(`${task.date}T${task.time || '23:59'}:00`);
         
         if (task.status === 'Done') {
           const doneDate = task.doneAt ? new Date(task.doneAt) : new Date(deadline);
 
           if (doneDate <= deadline) {
-            const earnedPoints = task.points ? Number(task.points) : 1; 
+            // FIX 3: Tidak menggunakan default "1" jika skor adalah 0 (falsy). Hanya mereturn "1" untuk task lawas yang variabel points-nya belum didefinisikan secara eksplisit.
+            const earnedPoints = task.points !== undefined ? Number(task.points) : 1; 
             currentScore += earnedPoints;
             if (currentScore > 100) currentScore = 100; 
             
