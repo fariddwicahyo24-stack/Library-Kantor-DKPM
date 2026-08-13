@@ -1014,39 +1014,44 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
     Object.keys(stats).forEach(pic => {
       let currentScore = 100;
       let onTimeCount = 0; let lateCount = 0; let activeLateCount = 0;
+      let activeLatePenalty = 0; // PERBAIKAN: Tampung penalti aktif terpisah
 
+      // Urutkan tugas berdasarkan tanggal
       const picTasks = stats[pic].tasksList.sort((a, b) => new Date(a.date) - new Date(b.date));
 
+      // 1. Evaluasi semua tugas (fokus poin base dan poin Done terlebih dahulu)
       picTasks.forEach(task => {
         if (!task.date || !task.time) return;
         
-        // FIX 2: Menambahkan ':00' pada parameter deadline agar format JS Date utuh dan mencegah "Invalid Date" di browser berbasis WebKit (Safari/iOS) yang menyebabkan penguraian NaN
         const deadline = new Date(`${task.date}T${task.time || '23:59'}:00`);
         
         if (task.status === 'Done') {
           const doneDate = task.doneAt ? new Date(task.doneAt) : new Date(deadline);
 
           if (doneDate <= deadline) {
-            // FIX 3: Tidak menggunakan default "1" jika skor adalah 0 (falsy). Hanya mereturn "1" untuk task lawas yang variabel points-nya belum didefinisikan secara eksplisit.
+            // Selesai tepat waktu -> tambah/pulihkan poin (maksimal 100)
             const earnedPoints = task.points !== undefined ? Number(task.points) : 1; 
             currentScore += earnedPoints;
             if (currentScore > 100) currentScore = 100; 
             
             onTimeCount++;
           } else {
+            // Selesai tapi telat -> langsung potong skor utama
             const diffDays = Math.ceil(Math.abs(doneDate - deadline) / (1000 * 60 * 60 * 24));
             currentScore -= diffDays;
             lateCount++;
           }
         } else {
+          // PERBAIKAN: Jika tugas BELUM selesai dan lewat deadline, kumpulkan nilai penaltinya
           if (nowTime > deadline) {
              const diffDays = Math.ceil(Math.abs(nowTime - deadline) / (1000 * 60 * 60 * 24));
-             currentScore -= diffDays; 
+             activeLatePenalty += diffDays; 
              activeLateCount++;
           }
         }
       });
 
+      // 2. Hitung penalti dari katalog terlambat
       let totalCatalogPenalty = 0;
       stats[pic].overdueLoans.forEach(loan => {
         if(loan.dueDate) {
@@ -1058,7 +1063,10 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
         }
       });
 
+      // 3. FINALISASI SKOR: Kurangi base skor akhir dengan penalti tugas aktif dan katalog
+      currentScore -= activeLatePenalty;
       currentScore -= totalCatalogPenalty;
+      
       stats[pic].score = currentScore;
       stats[pic].onTime = onTimeCount;
       stats[pic].late = lateCount;
@@ -1068,7 +1076,6 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
 
     return Object.values(stats).sort((a, b) => b.score - a.score);
   };
-
   const leaderboard = calculateKinerja();
 
   const handleExportPerformanceReport = async () => {
