@@ -16,6 +16,8 @@ import {
 } from "firebase/auth";
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, query } from "firebase/firestore";
 
+import { getOverdueTaskPenalty, getTaskPointValue } from './kinerja.js';
+
 // Fallback configuration (Untuk Production/Local Anda)
 const fallbackConfig = {
   apiKey: "AIzaSyBP8X0JcszhoIO8Vcei-t-UcL79xYJk58s",
@@ -997,7 +999,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
     const ensurePic = (name) => {
       const pic = name?.trim();
       if (!pic) return null;
-      if (!stats[pic]) stats[pic] = { name: pic, score: 100, onTime: 0, late: 0, activeLate: 0, tasksList: [], overdueLoans: [], totalCatalogPenaltyDays: 0 };
+      if (!stats[pic]) stats[pic] = { name: pic, score: 100, onTime: 0, late: 0, activeLate: 0, tasksList: [], overdueLoans: [], totalActiveTaskPenalty: 0, totalCatalogPenaltyDays: 0 };
       return pic;
     };
     yearlyTasksForKinerja.forEach(task => {
@@ -1021,7 +1023,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
 
       // 1. Evaluasi semua tugas (fokus poin base dan poin Done terlebih dahulu)
       picTasks.forEach(task => {
-        if (!task.date || !task.time) return;
+        if (!task.date) return;
         
         const deadline = new Date(`${task.date}T${task.time || '23:59'}:00`);
         
@@ -1030,7 +1032,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
 
           if (doneDate <= deadline) {
             // Selesai tepat waktu -> tambah/pulihkan poin (maksimal 100)
-            const earnedPoints = task.points !== undefined ? Number(task.points) : 1; 
+            const earnedPoints = getTaskPointValue(task);
             currentScore += earnedPoints;
             if (currentScore > 100) currentScore = 100; 
             
@@ -1042,11 +1044,11 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
             lateCount++;
           }
         } else {
-          // PERBAIKAN: Jika tugas BELUM selesai dan lewat deadline, kumpulkan nilai penaltinya
-          if (nowTime > deadline) {
-             const diffDays = Math.ceil(Math.abs(nowTime - deadline) / (1000 * 60 * 60 * 24));
-             activeLatePenalty += diffDays; 
-             activeLateCount++;
+          // Tugas aktif yang telat menanggung bobot poin tugas + 1 poin per hari.
+          const taskPenalty = getOverdueTaskPenalty(task, nowTime);
+          if (taskPenalty.total > 0) {
+            activeLatePenalty += taskPenalty.total;
+            activeLateCount++;
           }
         }
       });
@@ -1071,6 +1073,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
       stats[pic].onTime = onTimeCount;
       stats[pic].late = lateCount;
       stats[pic].activeLate = activeLateCount;
+      stats[pic].totalActiveTaskPenalty = activeLatePenalty;
       stats[pic].totalCatalogPenaltyDays = totalCatalogPenalty;
     });
 
@@ -1116,7 +1119,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
       <div className="bg-orange-50 border border-orange-100 rounded-2xl p-3 flex gap-3">
         <AlertTriangle size={16} className="text-orange-500 shrink-0 mt-0.5" />
         <p className="text-[10px] text-orange-800 leading-relaxed font-medium">
-          <b>Aturan Main:</b> Skor maksimal adalah <b>100 poin</b>. Submit tugas tepat waktu akan memulihkan poin yang hilang (skor kembali naik maksimal ke 100). Jika terlambat, poin tambahan tugas <b>hangus</b> dan skor dikurangi 1 poin/hari. Katalog terlambat juga mengurangi <b>1 poin per hari</b>.
+          <b>Aturan Main:</b> Skor maksimal adalah <b>100 poin</b>. Submit tugas tepat waktu akan memulihkan poin yang hilang (maksimal 100). Tugas yang melewati deadline dan belum disubmit mengurangi <b>bobot poin tugas + 1 poin/hari</b>. Jika disubmit terlambat, poin tambahan tugas hangus dan skor tetap dikurangi 1 poin/hari. Katalog terlambat juga mengurangi <b>1 poin/hari</b>.
         </p>
       </div>
 
@@ -1141,7 +1144,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-bold text-slate-800 text-base leading-tight">{emp.name}</h3>
-                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">Tugas Selesai: {emp.onTime + emp.late} / {emp.tasksList.length} · Pinjaman telat: {emp.overdueLoans.length} (-{emp.totalCatalogPenaltyDays} hari)</p>
+                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">Tugas Selesai: {emp.onTime + emp.late} / {emp.tasksList.length} · Penalti tugas aktif: -{emp.totalActiveTaskPenalty} Pts · Pinjaman telat: {emp.overdueLoans.length} (-{emp.totalCatalogPenaltyDays} hari)</p>
                   </div>
                   <div className={`px-3 py-1.5 rounded-xl border flex flex-col items-center justify-center min-w-[65px] ${colorTheme}`}>
                      <span className="text-lg font-black leading-none">{emp.score}</span><span className="text-[8px] font-bold uppercase tracking-wider mt-0.5">Point</span>
@@ -1189,7 +1192,7 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
                  <h2 style={{ margin: 0, fontSize: '18px', color: '#1e293b', fontWeight: '900' }}>#{idx+1} {emp.name}</h2>
                  <div style={{ fontSize: '14px', fontWeight: 'bold' }}><span style={{ color: emp.score >= 90 ? '#16a34a' : emp.score >= 75 ? '#ea580c' : '#dc2626' }}>Skor Akhir: {emp.score} Poin</span></div>
               </div>
-              <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#64748b' }}>Ringkasan: {emp.onTime} Tepat Waktu | {emp.late} Terlambat | {emp.activeLate} Belum Selesai (Lewat Deadline) | {emp.overdueLoans.length} Katalog Belum Kembali (-{emp.totalCatalogPenaltyDays} Poin)</p>
+              <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#64748b' }}>Ringkasan: {emp.onTime} Tepat Waktu | {emp.late} Terlambat | {emp.activeLate} Belum Selesai (Penalti -{emp.totalActiveTaskPenalty} Poin) | {emp.overdueLoans.length} Katalog Belum Kembali (-{emp.totalCatalogPenaltyDays} Poin)</p>
               {emp.overdueLoans.length > 0 && <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: '#dc2626', fontWeight: 'bold' }}>Katalog terlambat: {emp.overdueLoans.map(loan => loan.catalogTitle).join(', ')}</p>}
               
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
