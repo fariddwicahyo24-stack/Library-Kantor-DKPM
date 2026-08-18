@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "307842167975-a27ub46lj7nrf42o8p0ddebo75oqd251.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.designdkpm.app",
+            "certificate_hash": "e06b4ba4730915184293ad0f473101e168819c3a"
+          }
+        },
+        {
           "client_id": "307842167975-0foliug05mlib7na003m7io1dk0hp0os.apps.googleusercontent.com",
           "client_type": 3
         }

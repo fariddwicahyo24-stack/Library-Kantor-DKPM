@@ -25,3 +25,7 @@ dist-ssr
 
 .vercel
 .env*
+
+# Local Android release signing credentials
+android/keystore.properties
+android/keystore/

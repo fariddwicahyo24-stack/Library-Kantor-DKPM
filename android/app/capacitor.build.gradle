@@ -9,7 +9,10 @@ android {
 
 apply from: "../capacitor-cordova-android-plugins/cordova.variables.gradle"
 dependencies {
-    implementation project(':codetrix-studio-capacitor-google-auth')
+    implementation project(':capacitor-firebase-authentication')
+    implementation project(':capacitor-file-transfer')
+    implementation project(':capacitor-filesystem')
+    implementation project(':capacitor-local-notifications')
 
 }
 

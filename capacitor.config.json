@@ -1,12 +1,15 @@
 {
-  "appId": "com.namaperusahaan.designdkpm",
+  "appId": "com.designdkpm.app",
   "appName": "Design App DKPM",
   "webDir": "dist", 
   "plugins": {
-    "GoogleAuth": {
-      "scopes": ["profile", "email"],
-      "serverClientId": "307842167975-0foliug05mlib7na003m7io1dk0hp0os.apps.googleusercontent.com",
-      "forceCodeForRefreshToken": true
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["google.com"]
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_dkpm",
+      "iconColor": "#F97316"
     }
   }
 }

@@ -11,12 +11,22 @@ import {
 // === 1. FIREBASE CONFIGURATION & INITIALIZATION ===
 import { initializeApp } from "firebase/app";
 import { 
-  getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, 
-  signOut, signInWithCustomToken, signInAnonymously 
+  getAuth, indexedDBLocalPersistence, initializeAuth, signInWithPopup,
+  GoogleAuthProvider, onAuthStateChanged, signOut, signInWithCredential,
+  signInWithCustomToken, signInAnonymously
 } from "firebase/auth";
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, query } from "firebase/firestore";
+import { Capacitor } from "@capacitor/core";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 
 import { getOverdueTaskPenalty, getTaskPointValue } from './kinerja.js';
+import { downloadRemoteDocument, saveBase64Document } from './deviceFiles.js';
+import {
+  addNotificationNavigationListener,
+  initializeNativeNotifications,
+  showNativeActionNotification,
+  syncDeadlineNotifications,
+} from './nativeNotifications.js';
 
 // Fallback configuration (Untuk Production/Local Anda)
 const fallbackConfig = {
@@ -35,7 +45,9 @@ const firebaseConfig = isCanvasEnv ? JSON.parse(__firebase_config) : fallbackCon
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'design-app-dkpm';
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+const auth = Capacitor.isNativePlatform()
+  ? initializeAuth(app, { persistence: indexedDBLocalPersistence })
+  : getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
@@ -113,12 +125,7 @@ const executePDFExport = async (elementId, fileName, gdriveFolder, progressCallb
      const base64Str = pdfBase64DataUri.split(',')[1];
      progressCallback(60);
 
-     const link = document.createElement('a');
-     link.href = pdfBase64DataUri;
-     link.download = fileName;
-     document.body.appendChild(link);
-     link.click();
-     document.body.removeChild(link);
+     const localFile = await saveBase64Document(base64Str, fileName, 'application/pdf');
 
      progressCallback(80);
      const response = await fetch(GOOGLE_SCRIPT_URL, {
@@ -138,7 +145,7 @@ const executePDFExport = async (elementId, fileName, gdriveFolder, progressCallb
       element.style.display = 'none';
       if(result.status !== 'success') throw new Error(result.message || "Gagal upload G-Drive");
       
-      return result;
+      return { ...result, localFile };
   } catch (err) {
      element.style.display = 'none';
      throw err;
@@ -185,6 +192,9 @@ export default function App() {
   const [showNotif, setShowNotif] = useState(false); 
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState(new Date());
+  const [notificationsReady, setNotificationsReady] = useState(false);
+  const knownTaskIds = useRef(null);
+  const knownActivityIds = useRef(null);
 
   const [databaseProyek, setDatabaseProyek] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -251,11 +261,39 @@ export default function App() {
     const unsubProyek = onSnapshot(getCol('projects'), (snapshot) => setDatabaseProyek(snapshot.docs.map(doc => doc.data().name)));
     const unsubTasks = onSnapshot(query(getCol('tasks')), (snapshot) => {
       const taskData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const currentIds = new Set(taskData.map(task => task.id));
+      if (knownTaskIds.current) {
+        taskData
+          .filter(task => !knownTaskIds.current.has(task.id) && !task.isDeleted)
+          .forEach(task => {
+            const owner = task.picName ? ` untuk ${task.picName}` : '';
+            showNativeActionNotification(
+              'Tugas Baru Masuk',
+              `"${task.title || 'Tugas baru'}"${owner}. Buka aplikasi untuk melihat detail.`,
+              { kind: 'task', taskId: task.id },
+            ).catch(error => console.warn('Gagal menampilkan notifikasi tugas:', error));
+          });
+      }
+      knownTaskIds.current = currentIds;
       setTasks(taskData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
       setLastSyncTime(new Date());
     });
     const unsubActivities = onSnapshot(query(getCol('activities')), (snapshot) => {
       const actData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const currentIds = new Set(actData.map(activity => activity.id));
+      if (knownActivityIds.current) {
+        actData
+          .filter(activity => !knownActivityIds.current.has(activity.id))
+          .filter(activity => !activity.msg?.startsWith('Assign tugas baru'))
+          .forEach(activity => {
+            showNativeActionNotification(
+              'Perubahan di Design App DKPM',
+              activity.msg || 'Ada perubahan data baru di aplikasi.',
+              { kind: 'activity', activityId: activity.id },
+            ).catch(error => console.warn('Gagal menampilkan notifikasi aktivitas:', error));
+          });
+      }
+      knownActivityIds.current = currentIds;
       setActivities(actData.sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0)));
     });
     const unsubKatalog = onSnapshot(query(getCol('catalogs')), (snapshot) => {
@@ -271,7 +309,11 @@ export default function App() {
       setForms(formData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
     });
 
-    return () => { unsubProyek(); unsubTasks(); unsubActivities(); unsubKatalog(); unsubCatalogLoans(); unsubForms(); };
+    return () => {
+      knownTaskIds.current = null;
+      knownActivityIds.current = null;
+      unsubProyek(); unsubTasks(); unsubActivities(); unsubKatalog(); unsubCatalogLoans(); unsubForms();
+    };
   }, [user]);
 
   const deadlineTasks = tasks.filter(t => {
@@ -282,46 +324,38 @@ export default function App() {
     return diffDays >= 0 && diffDays <= 3;
   });
 
-  // === 3. HOOK NOTIFIKASI DEADLINE OS ===
+  // === 3. HOOK NOTIFIKASI ANDROID ===
   useEffect(() => {
-    if (!user || deadlineTasks.length === 0) return;
-    
-    const lastNotifTime = localStorage.getItem('lastDeadlineNotifTime');
-    const now = new Date().getTime();
-    const sixHoursInMs = 6 * 60 * 60 * 1000;
-
-    if (!lastNotifTime || (now - parseInt(lastNotifTime)) >= sixHoursInMs) {
-      setShowNotif(true);
-      localStorage.setItem('lastDeadlineNotifTime', now.toString());
-
-      try {
-        if (typeof window !== "undefined" && "Notification" in window) {
-          if (Notification.permission === "granted") {
-            try {
-              new Notification("Peringatan Deadline Design App DKPM", {
-                body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari). Segera cek tab Tugas!`,
-                icon: "Logo_DKPM.png" 
-              });
-            } catch (e) { console.warn("Gagal menampilkan notifikasi sistem:", e); }
-          } else if (Notification.permission !== "denied") {
-            Notification.requestPermission().then(permission => {
-              if (permission === "granted") {
-                try {
-                  new Notification("Peringatan Deadline Design App DKPM", {
-                    body: `Ada ${deadlineTasks.length} tugas yang mendekati deadline (≤ 3 hari).`
-                  });
-                } catch (e) { console.warn("Gagal menampilkan notifikasi sistem:", e); }
-              }
-            }).catch(err => {
-              console.warn("Izin notifikasi diblokir oleh browser (Wajar di HP):", err);
-            });
-          }
-        }
-      } catch (error) {
-        console.warn("Sistem OS tidak mendukung Notifikasi Web API:", error);
-      }
+    if (!user) {
+      setNotificationsReady(false);
+      return undefined;
     }
-  }, [deadlineTasks.length, user]); 
+
+    let cancelled = false;
+    let listenerHandle = null;
+    initializeNativeNotifications()
+      .then(async ready => {
+        if (cancelled) return;
+        setNotificationsReady(ready);
+        if (ready) {
+          const handle = await addNotificationNavigationListener(() => setActiveTab('tugas'));
+          if (cancelled) handle?.remove();
+          else listenerHandle = handle;
+        }
+      })
+      .catch(error => console.warn('Gagal menyiapkan notifikasi Android:', error));
+
+    return () => {
+      cancelled = true;
+      listenerHandle?.remove();
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !notificationsReady) return;
+    syncDeadlineNotifications(tasks)
+      .catch(error => console.warn('Gagal menjadwalkan pengingat deadline:', error));
+  }, [notificationsReady, tasks, user]);
 
   // === 4. HOOK AUTO REFRESH ===
   const handleManualSync = () => {
@@ -344,7 +378,14 @@ export default function App() {
     try { await addDoc(getCol('activities'), { msg, time: new Date().toISOString(), icon: iconName, color: colorClass, bg: bgClass, user: user?.name || 'Sistem' }); } catch (error) { console.error(error); }
   };
 
-  const handleLogout = async () => { try { await signOut(auth); } catch (error) { console.error("Gagal logout:", error); } };
+  const handleLogout = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) await FirebaseAuthentication.signOut();
+      await signOut(auth);
+    } catch (error) {
+      console.error("Gagal logout:", error);
+    }
+  };
 
   const navItems = [
     { id: 'beranda', label: 'Beranda', icon: Home },
@@ -601,6 +642,8 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [isExporting, setIsExporting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [taskStatusFilter, setTaskStatusFilter] = useState('All');
+  const [taskSort, setTaskSort] = useState('date-asc');
 
   const [proofModal, setProofModal] = useState({ isOpen: false, task: null });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -729,12 +772,36 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
     return taskYear === selectedYear;
   });
 
-  const visibleTasks = yearlyTasks.filter(task => {
-    if (task.status !== 'Done') return true; 
-    if (!task.doneAt) return true; 
-    const diffDays = (new Date() - new Date(task.doneAt)) / (1000 * 3600 * 24);
-    return diffDays <= 3; 
-  });
+  const taskStatusOptions = [
+    { value: 'All', label: 'Semua' },
+    { value: 'To Do', label: 'To Do' },
+    { value: 'In Progress', label: 'In Progress' },
+    { value: 'Done', label: 'Done' },
+  ];
+
+  const taskStatusCounts = yearlyTasks.reduce((counts, task) => {
+    counts.All += 1;
+    if (Object.prototype.hasOwnProperty.call(counts, task.status)) counts[task.status] += 1;
+    return counts;
+  }, { All: 0, 'To Do': 0, 'In Progress': 0, Done: 0 });
+
+  const visibleTasks = yearlyTasks
+    .filter(task => {
+      if (taskStatusFilter !== 'All') return task.status === taskStatusFilter;
+      if (task.status !== 'Done' || !task.doneAt) return true;
+      const diffDays = (new Date() - new Date(task.doneAt)) / (1000 * 3600 * 24);
+      return diffDays <= 3;
+    })
+    .sort((a, b) => {
+      if (taskSort === 'name-asc' || taskSort === 'name-desc') {
+        const comparison = (a.title || '').localeCompare(b.title || '', 'id', { sensitivity: 'base' });
+        return taskSort === 'name-asc' ? comparison : -comparison;
+      }
+
+      const aDeadline = new Date(`${a.date}T${a.time || '23:59'}:00`).getTime();
+      const bDeadline = new Date(`${b.date}T${b.time || '23:59'}:00`).getTime();
+      return taskSort === 'date-desc' ? bDeadline - aDeadline : aDeadline - bDeadline;
+    });
 
   const handleExportYearlyReport = async () => {
     if(yearlyTasks.length === 0) return alert(`Tidak ada data tugas aktif di tahun ${selectedYear}`);
@@ -742,9 +809,9 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
     try {
       const fileName = `Arsip_Tugas_Tahun_${selectedYear}.pdf`;
       const gdriveFolder = `APP DKPM/Arsip Laporan Tahunan/Tahun ${selectedYear}`;
-      await executePDFExport('task-report-template', fileName, gdriveFolder, setUploadProgress);
+      const result = await executePDFExport('task-report-template', fileName, gdriveFolder, setUploadProgress);
       handleAddActivity(`Ekspor & Arsip Laporan Tugas ${selectedYear} ke Cloud`, 'Archive', 'text-indigo-500', 'bg-indigo-50');
-      alert(`Arsip Tugas Tahun ${selectedYear} berhasil disimpan ke G-Drive!`);
+      alert(`Arsip berhasil disimpan ke G-Drive dan ${result.localFile.displayPath}`);
     } catch (err) { alert("Gagal Export: " + err.message); } finally { setIsExporting(false); setUploadProgress(0); }
   };
 
@@ -854,11 +921,59 @@ function TugasView({ databaseProyek, user, tasks, handleAddActivity, currentYear
         </div>
       </div>
 
+      <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm">
+        <div className="flex items-center justify-between gap-3 mb-2.5">
+          <div className="flex items-center gap-1.5 text-slate-700">
+            <Filter size={14} className="text-orange-500" />
+            <span className="text-[11px] font-bold uppercase tracking-wide">Filter Status</span>
+          </div>
+          <span className="text-[10px] font-semibold text-slate-400">{visibleTasks.length} ditampilkan</span>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {taskStatusOptions.map(option => {
+            const isActive = taskStatusFilter === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => setTaskStatusFilter(option.value)}
+                className={`shrink-0 px-3 py-2 rounded-xl text-[10px] font-bold border transition-colors ${isActive ? 'bg-orange-500 text-white border-orange-500 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-orange-200 hover:text-orange-600'}`}
+              >
+                {option.label} <span className={isActive ? 'text-orange-100' : 'text-slate-400'}>({taskStatusCounts[option.value]})</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="relative mt-2.5">
+          <ArrowUpDown size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <select
+            value={taskSort}
+            onChange={(e) => setTaskSort(e.target.value)}
+            aria-label="Urutkan daftar tugas"
+            className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-700 pl-9 pr-8 py-2.5 rounded-xl text-[11px] font-bold outline-none cursor-pointer focus:ring-2 focus:ring-orange-500"
+          >
+            <option value="date-asc">Deadline terdekat</option>
+            <option value="date-desc">Deadline terjauh</option>
+            <option value="name-asc">Nama tugas A–Z</option>
+            <option value="name-desc">Nama tugas Z–A</option>
+          </select>
+        </div>
+      </div>
+
       <div className="space-y-3 pb-6">
         {visibleTasks.length === 0 ? (
           <div className="text-center py-10 bg-white rounded-2xl border border-slate-200 shadow-sm">
             <CalendarCheck size={32} className="mx-auto text-slate-300 mb-2" />
-            <p className="text-sm font-bold text-slate-600">Belum ada tugas di tahun {selectedYear}.</p>
+            <p className="text-sm font-bold text-slate-600">Tidak ada tugas yang cocok dengan filter.</p>
+            <p className="text-[10px] text-slate-400 mt-1">Tahun {selectedYear} · {taskStatusFilter === 'All' ? 'Semua status' : taskStatusFilter}</p>
+            {taskStatusFilter !== 'All' && (
+              <button type="button" onClick={() => setTaskStatusFilter('All')} className="mt-3 text-[10px] font-bold text-orange-600 bg-orange-50 px-3 py-2 rounded-lg hover:bg-orange-100">
+                Tampilkan Semua
+              </button>
+            )}
           </div>
         ) : (
           visibleTasks.map((task) => (
@@ -1087,9 +1202,9 @@ function KinerjaView({ tasks, catalogLoans, currentYear, handleAddActivity }) {
     try {
       const fileName = `Laporan_Kinerja_Tim_${selectedYear}.pdf`;
       const gdriveFolder = `APP DKPM/Arsip Laporan Tahunan/Tahun ${selectedYear}`;
-      await executePDFExport('kinerja-report-template', fileName, gdriveFolder, setUploadProgress);
+      const result = await executePDFExport('kinerja-report-template', fileName, gdriveFolder, setUploadProgress);
       handleAddActivity(`Ekspor Report Kinerja Tim ${selectedYear} ke Cloud`, 'Award', 'text-yellow-500', 'bg-yellow-50');
-      alert(`Laporan Kinerja Tahun ${selectedYear} berhasil disimpan ke G-Drive!`);
+      alert(`Laporan berhasil disimpan ke G-Drive dan ${result.localFile.displayPath}`);
     } catch (err) { alert("Gagal Export: " + err.message); } finally { setIsExporting(false); setUploadProgress(0); }
   };
 
@@ -1469,8 +1584,9 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
        
        const pdfBase64DataUri = pdf.output('datauristring'); const base64Str = pdfBase64DataUri.split(',')[1]; setUploadProgress(65);
 
+       let localFile = null;
        if (actionType === 'local' || actionType === 'both') {
-           const link = document.createElement('a'); link.href = pdfBase64DataUri; link.download = namaFile; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+           localFile = await saveBase64Document(base64Str, namaFile, 'application/pdf');
            handleAddActivity(`Ekspor PDF Lokal HD "${selectedProject}"`, 'Download', 'text-slate-500', 'bg-slate-100');
        }
 
@@ -1484,7 +1600,10 @@ function ProgresPPTView({ databaseProyek, handleAddActivity }) {
             if(result.status === 'success'){ handleAddActivity(`Upload Laporan PDF HD "${selectedProject}" ke G-Drive`, 'Cloud', 'text-orange-500', 'bg-orange-50'); } else { throw new Error(result.message); }
        }
        setUploadProgress(100);
-       setTimeout(() => { setIsExporting(false); setShowExportModal(false); setUploadProgress(0); element.style.display = 'none'; alert("Proses Ekspor Selesai!"); }, 500);
+       const destination = localFile
+         ? `${localFile.displayPath}${actionType === 'both' ? ' dan G-Drive' : ''}`
+         : 'G-Drive';
+       setTimeout(() => { setIsExporting(false); setShowExportModal(false); setUploadProgress(0); element.style.display = 'none'; alert(`Proses ekspor selesai. File tersimpan di ${destination}`); }, 500);
     } catch (err) { console.error(err); setIsExporting(false); setUploadProgress(0); element.style.display = 'none'; alert("Gagal memproses laporan: " + err.message); }
   };
 
@@ -1722,6 +1841,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [editingCatalogId, setEditingCatalogId] = useState(null);
   const [selectedCatalogFile, setSelectedCatalogFile] = useState(null);
+  const [downloadingCatalogId, setDownloadingCatalogId] = useState(null);
   
   const [confirmDelete, setConfirmDelete] = useState(null); 
   const fileInputRef = useRef(null);
@@ -1787,6 +1907,21 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
   const handleDirectBorrow = (catalogId) => {
     setSelectedBorrowCatalogId(catalogId);
     setActiveCatalogTab('peminjaman');
+  };
+
+  const handleDownloadCatalog = async (item) => {
+    if (!item.fileLink || downloadingCatalogId) return;
+    setDownloadingCatalogId(item.id);
+    try {
+      const saved = await downloadRemoteDocument(item.fileLink, item.fileName || item.title);
+      handleAddActivity(`Mengunduh file katalog "${item.title}" ke perangkat`, 'Download', 'text-indigo-500', 'bg-indigo-50');
+      alert(`File berhasil disimpan di ${saved.displayPath}`);
+    } catch (error) {
+      console.error(error);
+      alert(`Gagal mengunduh file: ${error.message}`);
+    } finally {
+      setDownloadingCatalogId(null);
+    }
   };
 
   let filteredItems = catalogItems.filter(item => {
@@ -1869,7 +2004,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
               <div className="flex flex-wrap gap-1.5">{item.tags?.map((tag, idx) => ( <span key={idx} className="text-[9px] font-medium border border-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full bg-white">{tag}</span> ))}</div>
               <div className="flex gap-2 w-full pt-1">
                 <button onClick={() => hasWeb && window.open(hasWeb, '_blank')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all ${hasWeb ? 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 active:scale-95 cursor-pointer' : 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed'}`}>{hasWeb ? <><ExternalLink size={14} strokeWidth={2.5}/> Web / Referensi</> : <><AlertCircle size={14} strokeWidth={2.5}/> Web (N/A)</>}</button>
-                <button onClick={() => hasFile && window.open(hasFile, '_blank')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all ${hasFile ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 active:scale-95 cursor-pointer' : 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed'}`}>{hasFile ? <><FileText size={14} strokeWidth={2.5}/> File Digital</> : <><AlertCircle size={14} strokeWidth={2.5}/> File (N/A)</>}</button>
+                <button disabled={!hasFile || downloadingCatalogId === item.id} onClick={() => handleDownloadCatalog(item)} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all ${hasFile ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 active:scale-95 cursor-pointer disabled:opacity-60' : 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed'}`}>{hasFile ? <><Download size={14} strokeWidth={2.5}/> {downloadingCatalogId === item.id ? 'Mengunduh...' : 'Unduh File'}</> : <><AlertCircle size={14} strokeWidth={2.5}/> File (N/A)</>}</button>
               </div>
               <div className="pt-1 border-t border-slate-100">
                 {isBorrowed ? (
@@ -1906,8 +2041,9 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
 /* ================= KOMPONEN FORMULIR / FILE MASTER ================= */
 function FormulirView({ user, forms, handleAddActivity }) {
   const [isAdding, setIsAdding] = useState(false);
-  const [formData, setFormData] = useState({ title: '', desc: '', link: '' });
+  const [formData, setFormData] = useState({ title: '', desc: '', link: '', fileName: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [downloadingFormId, setDownloadingFormId] = useState(null);
 
   const handleSave = async () => {
     if (!formData.title || !formData.link) return alert("Judul dan Link wajib diisi!");
@@ -1920,7 +2056,7 @@ function FormulirView({ user, forms, handleAddActivity }) {
       });
       handleAddActivity(`Menambahkan form/file "${formData.title}"`, 'FileText', 'text-orange-500', 'bg-orange-50');
       setIsAdding(false);
-      setFormData({ title: '', desc: '', link: '' });
+      setFormData({ title: '', desc: '', link: '', fileName: '' });
     } catch (e) {
       alert("Gagal menyimpan form: " + e.message);
     } finally {
@@ -1936,6 +2072,21 @@ function FormulirView({ user, forms, handleAddActivity }) {
       } catch(e) {
         alert("Gagal menghapus form: " + e.message);
       }
+    }
+  };
+
+  const handleDownloadForm = async (form) => {
+    if (downloadingFormId) return;
+    setDownloadingFormId(form.id);
+    try {
+      const saved = await downloadRemoteDocument(form.link, form.fileName || form.title);
+      handleAddActivity(`Mengunduh form/file "${form.title}" ke perangkat`, 'Download', 'text-orange-500', 'bg-orange-50');
+      alert(`File berhasil disimpan di ${saved.displayPath}`);
+    } catch (error) {
+      console.error(error);
+      alert(`Gagal mengunduh file: ${error.message}`);
+    } finally {
+      setDownloadingFormId(null);
     }
   };
 
@@ -1968,6 +2119,10 @@ function FormulirView({ user, forms, handleAddActivity }) {
             <input type="url" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} placeholder="https://..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500" />
           </div>
           <div>
+            <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">Nama File <span className="normal-case font-medium">(opsional, sertakan ekstensi)</span></label>
+            <input type="text" value={formData.fileName} onChange={e => setFormData({...formData, fileName: e.target.value})} placeholder="Contoh: Form_Cuti.docx" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500" />
+          </div>
+          <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">Keterangan / Instruksi</label>
             <textarea rows="2" value={formData.desc} onChange={e => setFormData({...formData, desc: e.target.value})} placeholder="Penjelasan singkat mengenai fungsi file atau cara pengisian..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none resize-none focus:ring-2 focus:ring-orange-500" />
           </div>
@@ -1997,9 +2152,9 @@ function FormulirView({ user, forms, handleAddActivity }) {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <a href={form.link.startsWith('http') ? form.link : `https://${form.link}`} target="_blank" rel="noopener noreferrer" className="bg-slate-100 hover:bg-orange-50 hover:text-orange-700 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 border border-slate-200 hover:border-orange-200">
-                  <Download size={14} /> Unduh / Buka
-                </a>
+                <button disabled={downloadingFormId === form.id} onClick={() => handleDownloadForm(form)} className="bg-slate-100 hover:bg-orange-50 hover:text-orange-700 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 border border-slate-200 hover:border-orange-200 disabled:opacity-60">
+                  <Download size={14} /> {downloadingFormId === form.id ? 'Mengunduh...' : 'Unduh ke HP'}
+                </button>
                 {user.role === 'Admin' && (
                   <button onClick={() => handleDelete(form.id, form.title)} className="bg-red-50 text-red-500 p-2.5 rounded-xl hover:bg-red-100 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 border border-red-100" title="Hapus Form">
                     <Trash2 size={16} />
@@ -2018,17 +2173,38 @@ function FormulirView({ user, forms, handleAddActivity }) {
 function LoginScreen() {
   const handleGoogleLogin = async () => {
     try {
+      if (Capacitor.isNativePlatform()) {
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        if (!result.credential?.idToken) {
+          throw new Error("Google tidak mengembalikan ID token.");
+        }
+        const credential = GoogleAuthProvider.credential(
+          result.credential.idToken,
+          result.credential.accessToken,
+        );
+        await signInWithCredential(auth, credential);
+        return;
+      }
+
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
-      console.warn("Google Auth diblokir (Wajar di lingkungan preview). Mengalihkan ke Mode Preview...");
-      try {
-        await signInAnonymously(auth);
-      } catch (fallbackError) {
-        console.error("Gagal Login Preview:", fallbackError);
-        if (fallbackError.code === 'auth/operation-not-allowed') {
-          alert("PENTING: Anda harus mengaktifkan metode login 'Anonymous' di Firebase Console > Authentication > Sign-in method.");
-        } else { alert("Gagal mengakses sistem: " + fallbackError.message); }
+      if (isCanvasEnv) {
+        console.warn("Google Auth diblokir di lingkungan preview. Mengalihkan ke Mode Preview...");
+        try {
+          await signInAnonymously(auth);
+        } catch (fallbackError) {
+          console.error("Gagal Login Preview:", fallbackError);
+          if (fallbackError.code === 'auth/operation-not-allowed') {
+            alert("PENTING: Aktifkan login Anonymous di Firebase Console > Authentication > Sign-in method.");
+          } else {
+            alert("Gagal mengakses sistem: " + fallbackError.message);
+          }
+        }
+        return;
       }
+
+      console.error("Gagal login dengan Google:", error);
+      alert("Login Google gagal. Periksa koneksi internet dan konfigurasi akun, lalu coba kembali.");
     }
   };
 
