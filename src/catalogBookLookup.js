@@ -31,9 +31,31 @@ export const extractSearchText = (text = '') => {
   const lines = text
     .split(/\r?\n/)
     .map(line => line.replace(/[^\p{L}\p{N}\s:'&.,-]/gu, ' ').replace(/\s+/g, ' ').trim())
-    .filter(line => line.length >= 4 && line.length <= 100 && !ignored.test(line));
+    .filter(line => line.length >= 4 && line.length <= 100 && !ignored.test(line) && !/^[\dXx\s.-]+$/.test(line));
 
   return lines.slice(0, 3).join(' ').slice(0, 180);
+};
+
+export const createBookDraft = ({ isbn = '', text = '' } = {}) => ({
+  title: extractSearchText(text),
+  isbn: normalizeIsbn(isbn) || extractIsbn(text),
+  category: 'Buku',
+  found: false,
+});
+
+export const getGoogleBookSearchUrl = ({ isbn = '', text = '' } = {}) => {
+  const draft = createBookDraft({ isbn, text });
+  const term = draft.isbn || draft.title;
+  return term ? `https://www.google.com/search?q=${encodeURIComponent(`${term} buku`)}` : '';
+};
+
+export const applyBookMetadata = (previous, metadata) => {
+  const updates = {};
+  for (const field of ['title', 'source', 'isbn', 'category', 'webLink', 'desc']) {
+    if (field === 'category' && !metadata.found) continue;
+    if (metadata[field]) updates[field] = metadata[field];
+  }
+  return { ...previous, ...updates };
 };
 
 const buildDescription = ({ authors = [], publishedDate = '', pageCount, isbn = '', description = '', language = '' }) => {
@@ -52,7 +74,7 @@ const fromGoogleBook = (item, fallbackIsbn = '') => {
   const isbn = fallbackIsbn || info.industryIdentifiers?.find(identifier => identifier.type === 'ISBN_13')?.identifier || info.industryIdentifiers?.[0]?.identifier || '';
   return {
     title: info.title ? `${info.title}${info.subtitle ? `: ${info.subtitle}` : ''}` : '',
-    source: info.publisher || info.authors?.[0] || '',
+    source: info.publisher || '',
     isbn: normalizeIsbn(isbn),
     category: 'Buku',
     webLink: info.infoLink || info.previewLink || '',
@@ -66,57 +88,45 @@ const fromGoogleBook = (item, fallbackIsbn = '') => {
     }),
     coverUrl: info.imageLinks?.thumbnail?.replace(/^http:/, 'https:') || '',
     provider: 'Google Books',
-  };
-};
-
-const fromOpenLibrary = (doc, fallbackIsbn = '') => {
-  const isbn = fallbackIsbn || doc?.isbn?.[0] || '';
-  const workKey = doc?.key?.startsWith('/works/') ? doc.key : '';
-  return {
-    title: doc?.title || '',
-    source: doc?.publisher?.[0] || doc?.author_name?.[0] || '',
-    isbn: normalizeIsbn(isbn),
-    category: 'Buku',
-    webLink: workKey ? `https://openlibrary.org${workKey}` : '',
-    desc: buildDescription({
-      authors: doc?.author_name,
-      publishedDate: doc?.first_publish_year ? String(doc.first_publish_year) : '',
-      isbn,
-      language: doc?.language?.[0],
-    }),
-    coverUrl: doc?.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : '',
-    provider: 'Open Library',
+    found: true,
   };
 };
 
 const getJson = async (url, fetchFn) => {
-  const response = await fetchFn(url);
-  if (!response.ok) throw new Error(`Layanan metadata merespons ${response.status}`);
-  return response.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetchFn(url, { cache: 'no-store', signal: controller.signal });
+    if (!response.ok) throw new Error(response.status === 429
+      ? 'Google Books sedang membatasi pencarian. Coba Cari di Google atau lanjut isi form.'
+      : `Google Books belum dapat diakses (${response.status}). Coba Cari di Google atau lanjut isi form.`);
+    return await response.json();
+  } catch (error) {
+    if (error.name === 'AbortError' || error.name === 'TypeError') {
+      throw new Error('Tidak dapat terhubung ke Google Books. Periksa koneksi internet, atau lanjut isi form.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 };
 
 export const lookupBookMetadata = async ({ isbn = '', text = '', fetchFn = fetch } = {}) => {
-  const normalizedIsbn = normalizeIsbn(isbn) || extractIsbn(text);
-  const searchText = extractSearchText(text);
+  const draft = createBookDraft({ isbn, text });
+  const normalizedIsbn = draft.isbn;
+  const searchText = draft.title;
   if (!normalizedIsbn && !searchText) throw new Error('ISBN atau judul buku belum terbaca.');
 
-  const googleQuery = normalizedIsbn ? `isbn:${normalizedIsbn}` : searchText;
   const googleBooksKey = import.meta.env?.VITE_GOOGLE_BOOKS_API_KEY?.trim();
   const keyParameter = googleBooksKey ? `&key=${encodeURIComponent(googleBooksKey)}` : '';
-  try {
+  const queries = [...new Set([
+    ...(normalizedIsbn ? [`isbn:${normalizedIsbn}`] : []),
+    ...(searchText ? [`intitle:${searchText}`, searchText] : []),
+  ])];
+  for (const googleQuery of queries) {
     const googleData = await getJson(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(googleQuery)}&maxResults=5&printType=books${keyParameter}`, fetchFn);
-    const bestItem = googleData.items?.find(item => item.volumeInfo?.title) || googleData.items?.[0];
-    if (bestItem) return fromGoogleBook(bestItem, normalizedIsbn);
-  } catch {
-    // Open Library menjadi fallback saat Google Books sedang dibatasi atau tidak tersedia.
+    const bestItem = googleData.items?.find(item => item.volumeInfo?.title);
+    if (bestItem) return fromGoogleBook(bestItem, googleQuery.startsWith('isbn:') ? normalizedIsbn : '');
   }
-
-  const openLibraryUrl = normalizedIsbn
-    ? `https://openlibrary.org/search.json?isbn=${encodeURIComponent(normalizedIsbn)}&limit=5`
-    : `https://openlibrary.org/search.json?q=${encodeURIComponent(searchText)}&limit=5`;
-  const openLibraryData = await getJson(openLibraryUrl, fetchFn);
-  const bestDoc = openLibraryData.docs?.find(doc => doc.title) || openLibraryData.docs?.[0];
-  if (bestDoc) return fromOpenLibrary(bestDoc, normalizedIsbn);
-
-  throw new Error('Data buku tidak ditemukan di Google Books maupun Open Library.');
+  return draft;
 };

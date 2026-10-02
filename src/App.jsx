@@ -22,7 +22,7 @@ import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 
 import { getOverdueTaskPenalty, getTaskPointValue } from './kinerja.js';
 import { downloadRemoteDocument, saveBase64Document } from './deviceFiles.js';
-import { extractIsbn, lookupBookMetadata, normalizeIsbn } from './catalogBookLookup.js';
+import { applyBookMetadata, createBookDraft, extractIsbn, getGoogleBookSearchUrl, lookupBookMetadata, normalizeIsbn } from './catalogBookLookup.js';
 import { getFirebaseErrorMessage, subscribeServerCollections } from './firestoreSync.js';
 import {
   addNotificationNavigationListener,
@@ -1862,7 +1862,7 @@ function PeminjamanKatalogView({ user, catalogItems, catalogLoans, handleAddActi
   );
 }
 
-function BookScannerModal({ onClose, onApply }) {
+function BookScannerModal({ onClose, onApply, initialMode = 'camera', initialQuery = '' }) {
   const videoRef = useRef(null);
   const imageInputRef = useRef(null);
   const streamRef = useRef(null);
@@ -1870,10 +1870,12 @@ function BookScannerModal({ onClose, onApply }) {
   const scanLockRef = useRef(false);
   const cameraSessionRef = useRef(0);
   const mountedRef = useRef(true);
-  const [status, setStatus] = useState('opening');
-  const [message, setMessage] = useState('Meminta akses kamera...');
+  const [cameraEnabled, setCameraEnabled] = useState(initialMode === 'camera');
+  const [status, setStatus] = useState(initialMode === 'camera' ? 'opening' : 'idle');
+  const [message, setMessage] = useState(initialMode === 'camera' ? 'Meminta akses kamera...' : 'Ketik judul atau ISBN untuk mencari buku di Google melalui internet.');
   const [ocrProgress, setOcrProgress] = useState(0);
-  const [manualIsbn, setManualIsbn] = useState('');
+  const [manualQuery, setManualQuery] = useState(initialQuery);
+  const [scanDraft, setScanDraft] = useState(() => createBookDraft({ text: initialQuery }));
   const [result, setResult] = useState(null);
 
   const stopCamera = () => {
@@ -1888,15 +1890,23 @@ function BookScannerModal({ onClose, onApply }) {
     if (scanLockRef.current) return;
     scanLockRef.current = true;
     stopCamera();
+    setResult(null);
+    const draft = createBookDraft({ isbn, text });
+    setScanDraft(draft);
+    setManualQuery(draft.title || draft.isbn || text);
     setStatus('lookup');
-    setMessage('Mencari identitas buku di internet...');
+    setMessage('Mencari buku di Google melalui internet...');
     try {
       const metadata = await lookupBookMetadata({ isbn, text });
       if (!mountedRef.current) return;
-      setResult(metadata);
-      setManualIsbn(metadata.isbn || isbn);
-      setStatus('found');
-      setMessage(`Data ditemukan melalui ${metadata.provider}. Periksa sebelum digunakan.`);
+      if (metadata.found) {
+        setResult(metadata);
+        setStatus('found');
+        setMessage('Data ditemukan di Google Books. Periksa sebelum digunakan.');
+      } else {
+        setStatus('not-found');
+        setMessage('Informasi tambahan belum ditemukan di Google Books. Cari di Google, atau lanjut isi judul, jenis, dan data yang tersedia di form Katalog.');
+      }
     } catch (error) {
       if (!mountedRef.current) return;
       setStatus('error');
@@ -1976,6 +1986,7 @@ function BookScannerModal({ onClose, onApply }) {
 
   const startCamera = async () => {
     stopCamera();
+    setCameraEnabled(true);
     const cameraSession = cameraSessionRef.current;
     setResult(null);
     setStatus('opening');
@@ -2014,6 +2025,7 @@ function BookScannerModal({ onClose, onApply }) {
         setMessage('Pemindaian barcode otomatis tidak didukung perangkat ini. Foto sampul atau halaman ISBN.');
       }
     } catch (error) {
+      if (!mountedRef.current || cameraSession !== cameraSessionRef.current) return;
       setStatus('camera-error');
       setMessage(error.name === 'NotAllowedError'
         ? 'Izin kamera ditolak. Izinkan kamera di pengaturan, atau gunakan Ambil/Unggah Foto.'
@@ -2023,44 +2035,53 @@ function BookScannerModal({ onClose, onApply }) {
 
   useEffect(() => {
     mountedRef.current = true;
-    startCamera();
+    if (initialMode === 'camera') startCamera();
     return () => {
       mountedRef.current = false;
       stopCamera();
     };
-  }, []);
+  }, [initialMode]);
 
   const closeModal = () => {
     stopCamera();
     onClose();
   };
 
+  const isBusy = status === 'ocr' || status === 'lookup';
+  const googleSearchUrl = getGoogleBookSearchUrl({ text: manualQuery });
+  const continueWithForm = () => {
+    onApply(scanDraft);
+    closeModal();
+  };
+
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-label="Scan buku dengan kamera">
+    <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-label="Cari atau scan buku">
       <div className="w-full max-w-2xl max-h-[96vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl">
         <div className="sticky top-0 z-10 bg-white/95 backdrop-blur px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center"><ScanLine size={21}/></div><div><h3 className="font-black text-slate-800">Scan Buku</h3><p className="text-[10px] text-slate-500">ISBN, barcode, atau teks sampul</p></div></div>
+          <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center"><BookOpen size={21}/></div><div><h3 className="font-black text-slate-800">{cameraEnabled ? 'Scan Buku' : 'Cari Buku Online'}</h3><p className="text-[10px] text-slate-500">Judul atau ISBN · pencarian Google melalui internet</p></div></div>
           <button onClick={closeModal} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Tutup pemindai"><X size={21}/></button>
         </div>
 
         <div className="p-5 space-y-4">
-          <div className="relative overflow-hidden rounded-2xl bg-slate-950 aspect-[4/3] sm:aspect-video">
+          {(cameraEnabled || result) && <div className="relative overflow-hidden rounded-2xl bg-slate-950 aspect-[4/3] sm:aspect-video">
             <video ref={videoRef} muted playsInline className={`w-full h-full object-cover ${result ? 'opacity-25' : ''}`} />
             {!result && <div className="absolute inset-[17%] border-2 border-white/90 rounded-2xl shadow-[0_0_0_999px_rgba(2,6,23,0.36)] pointer-events-none"><span className="absolute -top-px -left-px w-8 h-8 border-t-4 border-l-4 border-orange-500 rounded-tl-2xl"/><span className="absolute -top-px -right-px w-8 h-8 border-t-4 border-r-4 border-orange-500 rounded-tr-2xl"/><span className="absolute -bottom-px -left-px w-8 h-8 border-b-4 border-l-4 border-orange-500 rounded-bl-2xl"/><span className="absolute -bottom-px -right-px w-8 h-8 border-b-4 border-r-4 border-orange-500 rounded-br-2xl"/></div>}
             {(status === 'opening' || status === 'lookup' || status === 'ocr') && <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/55 text-white"><RefreshCw size={28} className="animate-spin mb-3"/><p className="text-xs font-bold">{status === 'ocr' && ocrProgress ? `Membaca teks ${ocrProgress}%` : message}</p></div>}
             {result && <div className="absolute inset-0 p-5 flex items-center justify-center"><div className="w-full max-w-md bg-white rounded-2xl p-4 shadow-xl flex gap-4">{result.coverUrl ? <img src={result.coverUrl} alt="Sampul buku" className="w-20 h-28 object-cover rounded-lg bg-slate-100"/> : <div className="w-20 h-28 shrink-0 rounded-lg bg-orange-100 text-orange-500 flex items-center justify-center"><BookOpen size={30}/></div>}<div className="min-w-0"><span className="inline-flex items-center gap-1 text-[9px] font-bold bg-green-100 text-green-700 px-2 py-1 rounded-full"><Sparkles size={10}/> Ditemukan</span><h4 className="text-sm font-black text-slate-800 mt-2 line-clamp-3">{result.title}</h4><p className="text-[11px] text-slate-500 mt-1">{result.source || 'Penerbit tidak tercantum'}</p>{result.isbn && <p className="text-[10px] font-mono text-slate-400 mt-1">ISBN {result.isbn}</p>}</div></div></div>}
-          </div>
+          </div>}
 
           <div className={`rounded-xl border p-3 flex gap-2.5 ${status === 'error' || status === 'camera-error' ? 'bg-red-50 border-red-200 text-red-700' : status === 'found' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-orange-50 border-orange-100 text-orange-700'}`}><AlertCircle size={16} className="shrink-0 mt-0.5"/><p className="text-[11px] leading-relaxed font-medium">{message}</p></div>
 
           {!result && <>
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={captureFrame} disabled={status !== 'scanning'} className="py-3 rounded-xl bg-orange-600 text-white text-xs font-bold flex items-center justify-center gap-2 hover:bg-orange-700 disabled:opacity-40"><Camera size={17}/> Foto Sekarang</button>
+              <button onClick={cameraEnabled ? captureFrame : startCamera} disabled={cameraEnabled ? status !== 'scanning' : isBusy} className="py-3 rounded-xl bg-orange-600 text-white text-xs font-bold flex items-center justify-center gap-2 hover:bg-orange-700 disabled:opacity-40"><Camera size={17}/> {cameraEnabled ? 'Foto Sekarang' : 'Scan dengan Kamera'}</button>
               <button onClick={() => imageInputRef.current?.click()} disabled={status === 'ocr' || status === 'lookup'} className="py-3 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-50 disabled:opacity-40"><ImagePlus size={17}/> Ambil/Unggah Foto</button>
               <input ref={imageInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) readPhoto(file); event.target.value = ''; }}/>
             </div>
-            <div className="flex items-center gap-3"><div className="h-px flex-1 bg-slate-200"/><span className="text-[9px] font-bold text-slate-400 uppercase">atau ketik ISBN</span><div className="h-px flex-1 bg-slate-200"/></div>
-            <div className="flex gap-2"><input inputMode="numeric" value={manualIsbn} onChange={event => setManualIsbn(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') findBook({ isbn: manualIsbn }); }} placeholder="Contoh: 978602..." className="min-w-0 flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-orange-500"/><button onClick={() => findBook({ isbn: manualIsbn })} disabled={!manualIsbn.trim() || status === 'lookup'} className="px-4 rounded-xl bg-slate-800 text-white text-xs font-bold disabled:opacity-40">Cari</button></div>
+            <label htmlFor="book-online-query" className="block text-[10px] font-bold text-slate-500 uppercase">Cari judul atau ISBN di Google</label>
+            <div className="flex gap-2"><input id="book-online-query" value={manualQuery} disabled={isBusy} onChange={event => { setManualQuery(event.target.value); setScanDraft(createBookDraft({ text: event.target.value })); }} onKeyDown={event => { if (event.key === 'Enter' && manualQuery.trim() && !isBusy) findBook({ text: manualQuery }); }} placeholder="Judul buku atau ISBN" className="min-w-0 flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500"/><button onClick={() => findBook({ text: manualQuery })} disabled={!manualQuery.trim() || isBusy} className="px-4 rounded-xl bg-slate-800 text-white text-xs font-bold disabled:opacity-40">{status === 'lookup' ? 'Mencari...' : 'Cari Online'}</button></div>
+            {googleSearchUrl && <a href={googleSearchUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-3 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50"><ExternalLink size={16}/> Cari di Google</a>}
+            <button onClick={continueWithForm} disabled={isBusy} className="w-full py-3 rounded-xl bg-orange-600 text-white text-xs font-bold hover:bg-orange-700 disabled:opacity-40">Lanjut isi form Katalog</button>
             {(status === 'error' || status === 'camera-error') && <button onClick={startCamera} className="w-full py-2.5 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-xl">Coba Buka Kamera Lagi</button>}
           </>}
 
@@ -2084,6 +2105,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
   const [selectedCatalogFile, setSelectedCatalogFile] = useState(null);
   const [downloadingCatalogId, setDownloadingCatalogId] = useState(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannerMode, setScannerMode] = useState('camera');
   
   const [confirmDelete, setConfirmDelete] = useState(null); 
   const fileInputRef = useRef(null);
@@ -2093,11 +2115,22 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
 
   const [newData, setNewData] = useState({ title: '', date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', isbn: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: '' });
 
+  const openBookLookup = (mode) => {
+    if (!isAddingData) {
+      setNewData({ title: searchQuery.trim(), date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', isbn: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: '' });
+      setEditingCatalogId(null);
+      setSelectedCatalogFile(null);
+      setIsAddingData(true);
+    }
+    setScannerMode(mode);
+    setIsScannerOpen(true);
+  };
+
   const toggleTag = (tag) => { setNewData(prev => ({ ...prev, tags: prev.tags.includes(tag) ? prev.tags.filter(t => t !== tag) : [...prev.tags, tag] })); };
   const handleFileUpload = (e) => { if (e.target.files && e.target.files[0]) { setSelectedCatalogFile(e.target.files[0]); setNewData({...newData, fileName: e.target.files[0].name}); } };
 
   const handleSaveKatalog = async () => {
-    if (!newData.title || !newData.source) return alert('Nama Item dan Sumber wajib diisi!');
+    if (!newData.title.trim()) return alert('Nama Item wajib diisi!');
     setIsSubmitting(true); setUploadProgress(10);
     try {
       let uploadedFileUrl = null;
@@ -2181,22 +2214,15 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
       <div className="space-y-5 animation-fade-in">
         {isScannerOpen && (
           <BookScannerModal
+            initialMode={scannerMode}
+            initialQuery={newData.title || newData.isbn}
             onClose={() => setIsScannerOpen(false)}
-            onApply={metadata => setNewData(previous => ({
-              ...previous,
-              title: metadata.title || previous.title,
-              source: metadata.source || previous.source,
-              isbn: metadata.isbn || previous.isbn,
-              category: metadata.category || previous.category,
-              webLink: metadata.webLink || previous.webLink,
-              desc: metadata.desc || previous.desc,
-              tags: previous.tags.includes('Fisik') ? previous.tags : [...previous.tags, 'Fisik'],
-            }))}
+            onApply={metadata => setNewData(previous => applyBookMetadata(previous, metadata))}
           />
         )}
-        <div className="flex justify-between items-center gap-3"><h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">{editingCatalogId ? <Edit2 size={20} className="text-orange-600"/> : <Plus size={20} className="text-orange-600"/>} {editingCatalogId ? 'Edit Data Katalog' : 'Input Baru'}</h2><div className="flex items-center gap-2">{!editingCatalogId && <button onClick={() => setIsScannerOpen(true)} className="px-3 py-2 rounded-xl bg-orange-50 border border-orange-200 text-orange-700 text-xs font-bold flex items-center gap-2 hover:bg-orange-100 transition-colors"><ScanLine size={16}/> <span className="hidden sm:inline">Scan dengan Kamera</span><span className="sm:hidden">Scan</span></button>}<button onClick={() => { setIsAddingData(false); setEditingCatalogId(null); setSelectedCatalogFile(null); setIsScannerOpen(false); }} className="text-slate-400 hover:text-slate-600"><X size={24} /></button></div></div>
+        <div className="flex justify-between items-center gap-3"><h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">{editingCatalogId ? <Edit2 size={20} className="text-orange-600"/> : <Plus size={20} className="text-orange-600"/>} {editingCatalogId ? 'Edit Data Katalog' : 'Input Baru'}</h2><div className="flex items-center gap-2">{!editingCatalogId && <button onClick={() => openBookLookup('camera')} className="px-3 py-2 rounded-xl bg-orange-50 border border-orange-200 text-orange-700 text-xs font-bold flex items-center gap-2 hover:bg-orange-100 transition-colors"><ScanLine size={16}/> <span className="hidden sm:inline">Scan dengan Kamera</span><span className="sm:hidden">Scan</span></button>}<button onClick={() => { setIsAddingData(false); setEditingCatalogId(null); setSelectedCatalogFile(null); setIsScannerOpen(false); }} className="text-slate-400 hover:text-slate-600"><X size={24} /></button></div></div>
         <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 space-y-5">
-          {!editingCatalogId && <button onClick={() => setIsScannerOpen(true)} className="w-full rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-4 text-left flex items-center gap-4 hover:border-orange-300 hover:shadow-sm transition-all"><span className="w-11 h-11 shrink-0 rounded-xl bg-orange-600 text-white flex items-center justify-center shadow-sm"><Camera size={21}/></span><span className="min-w-0 flex-1"><span className="block text-sm font-black text-slate-800">Isi otomatis dari kamera</span><span className="block text-[10px] text-slate-500 mt-1">Scan ISBN/barcode atau foto sampul buku untuk mencari data di internet.</span></span><ChevronRight size={18} className="text-orange-500 shrink-0"/></button>}
+          {!editingCatalogId && <div className="grid gap-3 sm:grid-cols-2"><button onClick={() => openBookLookup('camera')} className="rounded-2xl border border-orange-200 bg-orange-50 p-4 text-left flex items-center gap-3 hover:border-orange-300"><Camera size={24} className="text-orange-600 shrink-0"/><span><span className="block text-sm font-bold">Isi dari kamera</span><span className="block text-[10px] text-slate-500 mt-1">Scan ISBN/barcode atau foto sampul.</span></span></button><button onClick={() => openBookLookup('search')} className="rounded-2xl border border-orange-200 bg-amber-50 p-4 text-left flex items-center gap-3 hover:border-orange-300"><Search size={24} className="text-orange-600 shrink-0"/><span><span className="block text-sm font-bold">Cari Buku Online</span><span className="block text-[10px] text-slate-500 mt-1">Cari judul atau ISBN di Google melalui internet.</span></span></button></div>}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Nama Item</label><input type="text" value={newData.title} onChange={e => setNewData({...newData, title: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none" /></div>
             <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tanggal</label><input type="date" value={newData.date} onChange={e => setNewData({...newData, date: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none" /></div>
@@ -2204,7 +2230,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
               <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Jenis</label>
               <div className="relative"><select value={newData.category} onChange={e => setNewData({...newData, category: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none appearance-none">{filterCategories.filter(c => c !== 'Semua').map(cat => <option key={cat} value={cat}>{cat}</option>)}</select><ChevronRight size={16} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-slate-400 pointer-events-none"/></div>
             </div>
-            <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Sumber</label><input type="text" value={newData.source} onChange={e => setNewData({...newData, source: e.target.value})} placeholder="Vendor/Penerbit" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none" /></div>
+            <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Sumber <span className="normal-case font-medium">(opsional)</span></label><input type="text" value={newData.source} onChange={e => setNewData({...newData, source: e.target.value})} placeholder="Vendor/Penerbit jika diketahui" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none" /></div>
             <div className="col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">ISBN <span className="normal-case font-medium text-slate-400">(opsional)</span></label><div className="relative"><ScanLine size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input type="text" inputMode="numeric" value={newData.isbn} onChange={e => setNewData({...newData, isbn: e.target.value})} placeholder="Terisi otomatis setelah scan" className="w-full py-3 pl-10 pr-3 bg-white border border-slate-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-orange-500 outline-none" /></div></div>
           </div>
           <div>
@@ -2238,12 +2264,13 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
         <div><h2 className="text-xl font-bold text-slate-800">Daftar Katalog</h2><p className="text-xs font-medium text-slate-500 mt-1">Tersinkronisasi dengan Database</p></div>
         <div className="flex gap-2"><button onClick={() => { setNewData({title: '', date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', isbn: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: ''}); setEditingCatalogId(null); setIsAddingData(true); }} className="bg-orange-600 text-white px-3 py-2.5 rounded-xl shadow-sm flex items-center gap-1.5 hover:bg-orange-700 active:scale-95 transition-all"><Plus size={16} strokeWidth={3} /><span className="text-xs font-bold pr-1">Tambah</span></button></div>
       </div>
+      <button onClick={() => openBookLookup('search')} className="w-full py-3 px-4 rounded-xl border border-orange-200 bg-orange-50 text-orange-700 text-xs font-bold flex items-center justify-center gap-2 hover:bg-orange-100"><Search size={16}/> Cari Buku Online di Google</button>
       <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
         <button className="px-3 py-2 rounded-lg text-xs font-bold bg-white text-orange-600 shadow-sm">Daftar Katalog</button>
         <button onClick={() => { setSelectedBorrowCatalogId(''); setActiveCatalogTab('peminjaman'); }} className="px-3 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800">Pinjam Katalog <span className="ml-1 rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] text-rose-700">{catalogLoans.filter(loan => !loan.returnedAt).length}</span></button>
       </div>
       <div className="flex gap-2">
-        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input type="text" placeholder="Cari..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm shadow-sm outline-none focus:ring-2 focus:ring-orange-500" /></div>
+        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input type="text" placeholder="Filter katalog tersimpan..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm shadow-sm outline-none focus:ring-2 focus:ring-orange-500" /></div>
         <div className="relative"><select value={sortOption} onChange={(e) => setSortOption(e.target.value)} className="appearance-none bg-white border border-slate-200 text-slate-700 pl-8 pr-6 py-2.5 rounded-xl shadow-sm text-[11px] font-bold outline-none cursor-pointer hover:bg-slate-50 w-full min-w-[130px]">{sortOptionsList.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select><ArrowUpDown size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" /></div>
       </div>
       <div className="flex overflow-x-auto no-scrollbar gap-2 pb-1">
