@@ -26,7 +26,8 @@
     "firebase": "^12.17.1",
     "lucide-react": "^1.28.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",

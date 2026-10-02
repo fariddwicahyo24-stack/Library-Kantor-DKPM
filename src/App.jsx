@@ -5,7 +5,8 @@ import {
   Copy, PlusCircle, FileText, User, AlertTriangle, Edit2, ChevronRight, 
   FolderPlus, File, History, Phone, MapPin, AlignLeft, Download, 
   ExternalLink, AlertCircle, Filter, ArrowUpDown, Upload, LogOut, Laptop, Cloud,
-  Move, Trash2, Award, TrendingDown, Archive, CalendarDays, RefreshCw, Link as LinkIcon
+  Move, Trash2, Award, TrendingDown, Archive, CalendarDays, RefreshCw, Link as LinkIcon,
+  ScanLine, BookOpen, ImagePlus, Sparkles
 } from 'lucide-react';
 
 // === 1. FIREBASE CONFIGURATION & INITIALIZATION ===
@@ -21,6 +22,8 @@ import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 
 import { getOverdueTaskPenalty, getTaskPointValue } from './kinerja.js';
 import { downloadRemoteDocument, saveBase64Document } from './deviceFiles.js';
+import { extractIsbn, lookupBookMetadata, normalizeIsbn } from './catalogBookLookup.js';
+import { getFirebaseErrorMessage, subscribeServerCollections } from './firestoreSync.js';
 import {
   addNotificationNavigationListener,
   initializeNativeNotifications,
@@ -191,7 +194,9 @@ export default function App() {
   const [user, setUser] = useState(null); 
   const [showNotif, setShowNotif] = useState(false); 
   const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState(new Date());
+  const [lastSyncTime, setLastSyncTime] = useState(null);
+  const [syncAttempt, setSyncAttempt] = useState(0);
+  const [syncError, setSyncError] = useState('');
   const [notificationsReady, setNotificationsReady] = useState(false);
   const knownTaskIds = useRef(null);
   const knownActivityIds = useRef(null);
@@ -256,10 +261,24 @@ export default function App() {
 
   // === 2. HOOK FIRESTORE DATA (REALTIME) ===
   useEffect(() => {
-    if (!user) return;
-    
-    const unsubProyek = onSnapshot(getCol('projects'), (snapshot) => setDatabaseProyek(snapshot.docs.map(doc => doc.data().name)));
-    const unsubTasks = onSnapshot(query(getCol('tasks')), (snapshot) => {
+    if (!user) {
+      setIsSyncing(false);
+      setLastSyncTime(null);
+      setSyncError('');
+      setDatabaseProyek([]);
+      setTasks([]);
+      setActivities([]);
+      setCatalogItems([]);
+      setCatalogLoans([]);
+      setForms([]);
+      return;
+    }
+
+    setSyncError('');
+    const sources = [];
+    const subscribe = (name, onData) => sources.push({ ref: query(getCol(name)), onData });
+    subscribe('projects', (snapshot) => setDatabaseProyek(snapshot.docs.map(doc => doc.data().name)));
+    subscribe('tasks', (snapshot) => {
       const taskData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const currentIds = new Set(taskData.map(task => task.id));
       if (knownTaskIds.current) {
@@ -276,9 +295,8 @@ export default function App() {
       }
       knownTaskIds.current = currentIds;
       setTasks(taskData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
-      setLastSyncTime(new Date());
     });
-    const unsubActivities = onSnapshot(query(getCol('activities')), (snapshot) => {
+    subscribe('activities', (snapshot) => {
       const actData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const currentIds = new Set(actData.map(activity => activity.id));
       if (knownActivityIds.current) {
@@ -296,25 +314,40 @@ export default function App() {
       knownActivityIds.current = currentIds;
       setActivities(actData.sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0)));
     });
-    const unsubKatalog = onSnapshot(query(getCol('catalogs')), (snapshot) => {
+    subscribe('catalogs', (snapshot) => {
       const catData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setCatalogItems(catData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
     });
-    const unsubCatalogLoans = onSnapshot(query(getCol('catalogLoans')), (snapshot) => {
+    subscribe('catalogLoans', (snapshot) => {
       const loanData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setCatalogLoans(loanData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
     });
-    const unsubForms = onSnapshot(query(getCol('forms')), (snapshot) => {
+    subscribe('forms', (snapshot) => {
       const formData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setForms(formData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
     });
 
+    const unsubscribe = subscribeServerCollections(sources, {
+      listen: onSnapshot,
+      onPending: () => setIsSyncing(true),
+      onSynced: () => {
+        setIsSyncing(false);
+        setSyncError('');
+        setLastSyncTime(new Date());
+      },
+      onError: (error) => {
+        console.error('Gagal sinkronisasi Firestore:', error);
+        setIsSyncing(false);
+        setSyncError(getFirebaseErrorMessage(error));
+      },
+    });
+
     return () => {
+      unsubscribe();
       knownTaskIds.current = null;
       knownActivityIds.current = null;
-      unsubProyek(); unsubTasks(); unsubActivities(); unsubKatalog(); unsubCatalogLoans(); unsubForms();
     };
-  }, [user]);
+  }, [user, syncAttempt]);
 
   const deadlineTasks = tasks.filter(t => {
     if (t.status === 'Done' || t.isDeleted) return false;
@@ -359,19 +392,17 @@ export default function App() {
 
   // === 4. HOOK AUTO REFRESH ===
   const handleManualSync = () => {
-    setIsSyncing(true);
-    setTimeout(() => {
-      setIsSyncing(false);
-      setLastSyncTime(new Date());
-    }, 1000);
+    if (!user || isSyncing) return;
+    setSyncAttempt(attempt => attempt + 1);
   };
 
   useEffect(() => {
+    if (!user) return;
     const interval = setInterval(() => {
-      handleManualSync();
+      setSyncAttempt(attempt => attempt + 1);
     }, 30 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   // === 5. FUNGSI HANDLER ===
   const handleAddActivity = async (msg, iconName, colorClass, bgClass) => {
@@ -441,7 +472,7 @@ export default function App() {
               <span className="hidden sm:inline text-sm font-medium text-slate-400">/ Workspace</span>
             </h1>
             <div className="flex items-center gap-3">
-              <button onClick={handleManualSync} className={`text-slate-400 hover:text-orange-500 transition-colors ${isSyncing ? 'animate-spin text-orange-500' : ''}`} title="Sinkronisasi Data">
+              <button onClick={handleManualSync} disabled={isSyncing} aria-label="Sinkronisasi Data" className={`text-slate-400 hover:text-orange-500 transition-colors ${isSyncing ? 'animate-spin text-orange-500' : ''}`} title="Sinkronisasi Data">
                 <RefreshCw size={20} />
               </button>
               <button onClick={() => setShowNotif(!showNotif)} className="text-slate-400 hover:text-orange-500 transition-colors relative">
@@ -452,9 +483,10 @@ export default function App() {
             </div>
           </div>
           <div className="text-[9px] text-slate-400 font-medium flex justify-end items-center gap-1">
-            <span className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></span>
-            Update: {lastSyncTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+            <span className={`w-1.5 h-1.5 rounded-full ${syncError ? 'bg-rose-500' : isSyncing ? 'bg-yellow-400 animate-pulse' : lastSyncTime ? 'bg-green-500' : 'bg-slate-400'}`}></span>
+            {syncError ? 'Sinkronisasi gagal' : isSyncing ? 'Menyinkronkan data...' : lastSyncTime ? `Update: ${lastSyncTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` : 'Belum tersinkronisasi'}
           </div>
+          {syncError && <p role="alert" className="text-xs text-rose-600 text-right">{syncError} Klik tombol sinkronisasi untuk mencoba kembali.</p>}
 
           {/* ISI PUSAT NOTIFIKASI */}
           {showNotif && (
@@ -1830,6 +1862,215 @@ function PeminjamanKatalogView({ user, catalogItems, catalogLoans, handleAddActi
   );
 }
 
+function BookScannerModal({ onClose, onApply }) {
+  const videoRef = useRef(null);
+  const imageInputRef = useRef(null);
+  const streamRef = useRef(null);
+  const scanTimerRef = useRef(null);
+  const scanLockRef = useRef(false);
+  const cameraSessionRef = useRef(0);
+  const mountedRef = useRef(true);
+  const [status, setStatus] = useState('opening');
+  const [message, setMessage] = useState('Meminta akses kamera...');
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [manualIsbn, setManualIsbn] = useState('');
+  const [result, setResult] = useState(null);
+
+  const stopCamera = () => {
+    cameraSessionRef.current += 1;
+    if (scanTimerRef.current) window.clearTimeout(scanTimerRef.current);
+    scanTimerRef.current = null;
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+  };
+
+  const findBook = async ({ isbn = '', text = '' }) => {
+    if (scanLockRef.current) return;
+    scanLockRef.current = true;
+    stopCamera();
+    setStatus('lookup');
+    setMessage('Mencari identitas buku di internet...');
+    try {
+      const metadata = await lookupBookMetadata({ isbn, text });
+      if (!mountedRef.current) return;
+      setResult(metadata);
+      setManualIsbn(metadata.isbn || isbn);
+      setStatus('found');
+      setMessage(`Data ditemukan melalui ${metadata.provider}. Periksa sebelum digunakan.`);
+    } catch (error) {
+      if (!mountedRef.current) return;
+      setStatus('error');
+      setMessage(error.message || 'Data buku tidak berhasil ditemukan.');
+    } finally {
+      scanLockRef.current = false;
+    }
+  };
+
+  const detectBarcode = async (source) => {
+    if (!('BarcodeDetector' in window)) return '';
+    try {
+      const detector = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128'] });
+      const barcodes = await detector.detect(source);
+      const isbnBarcode = barcodes.find(item => {
+        const value = normalizeIsbn(item.rawValue || '');
+        return value.length === 13 && (value.startsWith('978') || value.startsWith('979'));
+      });
+      return isbnBarcode ? normalizeIsbn(isbnBarcode.rawValue) : '';
+    } catch (error) {
+      console.warn('Pemindai barcode bawaan tidak tersedia.', error);
+      return '';
+    }
+  };
+
+  const readPhoto = async (imageBlob) => {
+    if (!imageBlob) return;
+    stopCamera();
+    setResult(null);
+    setStatus('ocr');
+    setOcrProgress(0);
+    setMessage('Memeriksa barcode pada foto...');
+    try {
+      const bitmap = typeof createImageBitmap === 'function' ? await createImageBitmap(imageBlob) : imageBlob;
+      const barcodeIsbn = await detectBarcode(bitmap);
+      if (bitmap?.close) bitmap.close();
+      if (barcodeIsbn) {
+        await findBook({ isbn: barcodeIsbn });
+        return;
+      }
+
+      setMessage('Membaca judul dan ISBN dengan OCR...');
+      const { createWorker } = await import('tesseract.js');
+      const worker = await createWorker('eng', 1, {
+        logger: progress => {
+          if (progress.status === 'recognizing text' && mountedRef.current) {
+            setOcrProgress(Math.round((progress.progress || 0) * 100));
+          }
+        },
+      });
+      let ocrResult;
+      try {
+        ocrResult = await worker.recognize(imageBlob);
+      } finally {
+        await worker.terminate();
+      }
+      const text = ocrResult?.data?.text || '';
+      const isbn = extractIsbn(text);
+      await findBook({ isbn, text });
+    } catch (error) {
+      if (!mountedRef.current) return;
+      scanLockRef.current = false;
+      setStatus('error');
+      setMessage(error.message || 'Foto tidak berhasil dibaca. Coba foto halaman ISBN dengan lebih dekat.');
+    }
+  };
+
+  const captureFrame = () => {
+    const video = videoRef.current;
+    if (!video?.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    canvas.toBlob(blob => readPhoto(blob), 'image/jpeg', 0.92);
+  };
+
+  const startCamera = async () => {
+    stopCamera();
+    const cameraSession = cameraSessionRef.current;
+    setResult(null);
+    setStatus('opening');
+    setMessage('Meminta akses kamera...');
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Kamera langsung tidak didukung. Gunakan tombol Ambil/Unggah Foto.');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      if (!mountedRef.current || cameraSession !== cameraSessionRef.current) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      streamRef.current = stream;
+      const video = videoRef.current;
+      video.srcObject = stream;
+      await video.play();
+      setStatus('scanning');
+      setMessage('Arahkan barcode ISBN ke dalam kotak. Pemindaian berlangsung otomatis.');
+
+      if ('BarcodeDetector' in window) {
+        const scanVideo = async () => {
+          if (!mountedRef.current || !streamRef.current || scanLockRef.current) return;
+          if (video.readyState >= 2) {
+            const isbn = await detectBarcode(video);
+            if (isbn) {
+              await findBook({ isbn });
+              return;
+            }
+          }
+          scanTimerRef.current = window.setTimeout(scanVideo, 450);
+        };
+        scanVideo();
+      } else {
+        setMessage('Pemindaian barcode otomatis tidak didukung perangkat ini. Foto sampul atau halaman ISBN.');
+      }
+    } catch (error) {
+      setStatus('camera-error');
+      setMessage(error.name === 'NotAllowedError'
+        ? 'Izin kamera ditolak. Izinkan kamera di pengaturan, atau gunakan Ambil/Unggah Foto.'
+        : (error.message || 'Kamera tidak dapat dibuka.'));
+    }
+  };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    startCamera();
+    return () => {
+      mountedRef.current = false;
+      stopCamera();
+    };
+  }, []);
+
+  const closeModal = () => {
+    stopCamera();
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-label="Scan buku dengan kamera">
+      <div className="w-full max-w-2xl max-h-[96vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl">
+        <div className="sticky top-0 z-10 bg-white/95 backdrop-blur px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center"><ScanLine size={21}/></div><div><h3 className="font-black text-slate-800">Scan Buku</h3><p className="text-[10px] text-slate-500">ISBN, barcode, atau teks sampul</p></div></div>
+          <button onClick={closeModal} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Tutup pemindai"><X size={21}/></button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="relative overflow-hidden rounded-2xl bg-slate-950 aspect-[4/3] sm:aspect-video">
+            <video ref={videoRef} muted playsInline className={`w-full h-full object-cover ${result ? 'opacity-25' : ''}`} />
+            {!result && <div className="absolute inset-[17%] border-2 border-white/90 rounded-2xl shadow-[0_0_0_999px_rgba(2,6,23,0.36)] pointer-events-none"><span className="absolute -top-px -left-px w-8 h-8 border-t-4 border-l-4 border-orange-500 rounded-tl-2xl"/><span className="absolute -top-px -right-px w-8 h-8 border-t-4 border-r-4 border-orange-500 rounded-tr-2xl"/><span className="absolute -bottom-px -left-px w-8 h-8 border-b-4 border-l-4 border-orange-500 rounded-bl-2xl"/><span className="absolute -bottom-px -right-px w-8 h-8 border-b-4 border-r-4 border-orange-500 rounded-br-2xl"/></div>}
+            {(status === 'opening' || status === 'lookup' || status === 'ocr') && <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/55 text-white"><RefreshCw size={28} className="animate-spin mb-3"/><p className="text-xs font-bold">{status === 'ocr' && ocrProgress ? `Membaca teks ${ocrProgress}%` : message}</p></div>}
+            {result && <div className="absolute inset-0 p-5 flex items-center justify-center"><div className="w-full max-w-md bg-white rounded-2xl p-4 shadow-xl flex gap-4">{result.coverUrl ? <img src={result.coverUrl} alt="Sampul buku" className="w-20 h-28 object-cover rounded-lg bg-slate-100"/> : <div className="w-20 h-28 shrink-0 rounded-lg bg-orange-100 text-orange-500 flex items-center justify-center"><BookOpen size={30}/></div>}<div className="min-w-0"><span className="inline-flex items-center gap-1 text-[9px] font-bold bg-green-100 text-green-700 px-2 py-1 rounded-full"><Sparkles size={10}/> Ditemukan</span><h4 className="text-sm font-black text-slate-800 mt-2 line-clamp-3">{result.title}</h4><p className="text-[11px] text-slate-500 mt-1">{result.source || 'Penerbit tidak tercantum'}</p>{result.isbn && <p className="text-[10px] font-mono text-slate-400 mt-1">ISBN {result.isbn}</p>}</div></div></div>}
+          </div>
+
+          <div className={`rounded-xl border p-3 flex gap-2.5 ${status === 'error' || status === 'camera-error' ? 'bg-red-50 border-red-200 text-red-700' : status === 'found' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-orange-50 border-orange-100 text-orange-700'}`}><AlertCircle size={16} className="shrink-0 mt-0.5"/><p className="text-[11px] leading-relaxed font-medium">{message}</p></div>
+
+          {!result && <>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={captureFrame} disabled={status !== 'scanning'} className="py-3 rounded-xl bg-orange-600 text-white text-xs font-bold flex items-center justify-center gap-2 hover:bg-orange-700 disabled:opacity-40"><Camera size={17}/> Foto Sekarang</button>
+              <button onClick={() => imageInputRef.current?.click()} disabled={status === 'ocr' || status === 'lookup'} className="py-3 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-50 disabled:opacity-40"><ImagePlus size={17}/> Ambil/Unggah Foto</button>
+              <input ref={imageInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) readPhoto(file); event.target.value = ''; }}/>
+            </div>
+            <div className="flex items-center gap-3"><div className="h-px flex-1 bg-slate-200"/><span className="text-[9px] font-bold text-slate-400 uppercase">atau ketik ISBN</span><div className="h-px flex-1 bg-slate-200"/></div>
+            <div className="flex gap-2"><input inputMode="numeric" value={manualIsbn} onChange={event => setManualIsbn(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') findBook({ isbn: manualIsbn }); }} placeholder="Contoh: 978602..." className="min-w-0 flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-orange-500"/><button onClick={() => findBook({ isbn: manualIsbn })} disabled={!manualIsbn.trim() || status === 'lookup'} className="px-4 rounded-xl bg-slate-800 text-white text-xs font-bold disabled:opacity-40">Cari</button></div>
+            {(status === 'error' || status === 'camera-error') && <button onClick={startCamera} className="w-full py-2.5 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-xl">Coba Buka Kamera Lagi</button>}
+          </>}
+
+          {result && <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end"><button onClick={startCamera} className="px-5 py-3 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100">Scan Ulang</button><button onClick={() => { onApply(result); closeModal(); }} className="px-5 py-3 rounded-xl bg-orange-600 text-white text-xs font-bold shadow-sm hover:bg-orange-700 flex items-center justify-center gap-2"><CheckCircle2 size={16}/> Gunakan Data Ini</button></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCatalogTab, setActiveCatalogTab] = useState('katalog');
@@ -1842,6 +2083,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
   const [editingCatalogId, setEditingCatalogId] = useState(null);
   const [selectedCatalogFile, setSelectedCatalogFile] = useState(null);
   const [downloadingCatalogId, setDownloadingCatalogId] = useState(null);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   
   const [confirmDelete, setConfirmDelete] = useState(null); 
   const fileInputRef = useRef(null);
@@ -1849,7 +2091,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
   const sortOptionsList = ['Terbaru Ditambah', 'Terbaru Diedit', 'Nama (A-Z)', 'Jenis'];
   const kelengkapanOptions = ['Fisik', 'Digital', 'Pricelist', 'Sampel'];
 
-  const [newData, setNewData] = useState({ title: '', date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: '' });
+  const [newData, setNewData] = useState({ title: '', date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', isbn: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: '' });
 
   const toggleTag = (tag) => { setNewData(prev => ({ ...prev, tags: prev.tags.includes(tag) ? prev.tags.filter(t => t !== tag) : [...prev.tags, tag] })); };
   const handleFileUpload = (e) => { if (e.target.files && e.target.files[0]) { setSelectedCatalogFile(e.target.files[0]); setNewData({...newData, fileName: e.target.files[0].name}); } };
@@ -1881,18 +2123,18 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
       let finalWebLink = newData.webLink; if (finalWebLink && !finalWebLink.startsWith('http')) finalWebLink = 'https://' + finalWebLink;
       let finalFileLink = uploadedFileUrl || newData.fileLink; if (finalFileLink && !finalFileLink.startsWith('http')) finalFileLink = 'https://' + finalFileLink;
 
-      const catalogPayload = { category: newData.category, title: newData.title, addedBy: user.name, date: newData.date, source: newData.source, tags: newData.tags, webLink: finalWebLink, fileLink: finalFileLink, desc: newData.desc, fileName: newData.fileName, updatedAt: new Date().toISOString() };
+      const catalogPayload = { category: newData.category, title: newData.title, addedBy: user.name, date: newData.date, source: newData.source, isbn: normalizeIsbn(newData.isbn), tags: newData.tags, webLink: finalWebLink, fileLink: finalFileLink, desc: newData.desc, fileName: newData.fileName, updatedAt: new Date().toISOString() };
 
       if (editingCatalogId) { await updateDoc(getDoc('catalogs', editingCatalogId), catalogPayload); handleAddActivity(`Mengedit katalog "${newData.title}"`, 'Edit2', 'text-orange-500', 'bg-orange-50'); } 
       else { catalogPayload.createdAt = new Date().toISOString(); await addDoc(getCol('catalogs'), catalogPayload); handleAddActivity(`Menambahkan katalog "${newData.title}"`, 'FolderPlus', 'text-orange-500', 'bg-orange-50'); }
 
       setUploadProgress(100);
-      setTimeout(() => { setIsSubmitting(false); setUploadProgress(0); setIsAddingData(false); setEditingCatalogId(null); setSelectedCatalogFile(null); setNewData({title: '', date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: ''}); }, 500);
+      setTimeout(() => { setIsSubmitting(false); setUploadProgress(0); setIsAddingData(false); setEditingCatalogId(null); setSelectedCatalogFile(null); setNewData({title: '', date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', isbn: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: ''}); }, 500);
     } catch (error) { setIsSubmitting(false); setUploadProgress(0); console.error(error); alert("Gagal simpan Katalog: " + error.message); }
   };
 
   const handleEditCatalog = (item) => {
-    setNewData({ title: item.title || '', date: item.date || new Date().toISOString().split('T')[0], category: item.category || 'Buku', source: item.source || '', tags: item.tags || [], webLink: item.webLink || item.link || '', fileLink: item.fileLink || '', desc: item.desc || '', fileName: item.fileName || '' });
+    setNewData({ title: item.title || '', date: item.date || new Date().toISOString().split('T')[0], category: item.category || 'Buku', source: item.source || '', isbn: item.isbn || '', tags: item.tags || [], webLink: item.webLink || item.link || '', fileLink: item.fileLink || '', desc: item.desc || '', fileName: item.fileName || '' });
     setEditingCatalogId(item.id); setIsAddingData(true);
   };
 
@@ -1925,7 +2167,8 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
   };
 
   let filteredItems = catalogItems.filter(item => {
-    const matchSearch = (item.title || '').toLowerCase().includes(searchQuery.toLowerCase()) || (item.source || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const normalizedSearchIsbn = normalizeIsbn(searchQuery);
+    const matchSearch = (item.title || '').toLowerCase().includes(searchQuery.toLowerCase()) || (item.source || '').toLowerCase().includes(searchQuery.toLowerCase()) || (normalizedSearchIsbn.length >= 3 && (item.isbn || '').includes(normalizedSearchIsbn));
     const matchFilter = activeFilter === 'Semua' || item.category === activeFilter;
     return matchSearch && matchFilter;
   });
@@ -1936,8 +2179,24 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
   if (isAddingData) {
     return (
       <div className="space-y-5 animation-fade-in">
-        <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">{editingCatalogId ? <Edit2 size={20} className="text-orange-600"/> : <Plus size={20} className="text-orange-600"/>} {editingCatalogId ? 'Edit Data Katalog' : 'Input Baru'}</h2><button onClick={() => { setIsAddingData(false); setEditingCatalogId(null); setSelectedCatalogFile(null); }} className="text-slate-400 hover:text-slate-600"><X size={24} /></button></div>
+        {isScannerOpen && (
+          <BookScannerModal
+            onClose={() => setIsScannerOpen(false)}
+            onApply={metadata => setNewData(previous => ({
+              ...previous,
+              title: metadata.title || previous.title,
+              source: metadata.source || previous.source,
+              isbn: metadata.isbn || previous.isbn,
+              category: metadata.category || previous.category,
+              webLink: metadata.webLink || previous.webLink,
+              desc: metadata.desc || previous.desc,
+              tags: previous.tags.includes('Fisik') ? previous.tags : [...previous.tags, 'Fisik'],
+            }))}
+          />
+        )}
+        <div className="flex justify-between items-center gap-3"><h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">{editingCatalogId ? <Edit2 size={20} className="text-orange-600"/> : <Plus size={20} className="text-orange-600"/>} {editingCatalogId ? 'Edit Data Katalog' : 'Input Baru'}</h2><div className="flex items-center gap-2">{!editingCatalogId && <button onClick={() => setIsScannerOpen(true)} className="px-3 py-2 rounded-xl bg-orange-50 border border-orange-200 text-orange-700 text-xs font-bold flex items-center gap-2 hover:bg-orange-100 transition-colors"><ScanLine size={16}/> <span className="hidden sm:inline">Scan dengan Kamera</span><span className="sm:hidden">Scan</span></button>}<button onClick={() => { setIsAddingData(false); setEditingCatalogId(null); setSelectedCatalogFile(null); setIsScannerOpen(false); }} className="text-slate-400 hover:text-slate-600"><X size={24} /></button></div></div>
         <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 space-y-5">
+          {!editingCatalogId && <button onClick={() => setIsScannerOpen(true)} className="w-full rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-4 text-left flex items-center gap-4 hover:border-orange-300 hover:shadow-sm transition-all"><span className="w-11 h-11 shrink-0 rounded-xl bg-orange-600 text-white flex items-center justify-center shadow-sm"><Camera size={21}/></span><span className="min-w-0 flex-1"><span className="block text-sm font-black text-slate-800">Isi otomatis dari kamera</span><span className="block text-[10px] text-slate-500 mt-1">Scan ISBN/barcode atau foto sampul buku untuk mencari data di internet.</span></span><ChevronRight size={18} className="text-orange-500 shrink-0"/></button>}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Nama Item</label><input type="text" value={newData.title} onChange={e => setNewData({...newData, title: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none" /></div>
             <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Tanggal</label><input type="date" value={newData.date} onChange={e => setNewData({...newData, date: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none" /></div>
@@ -1946,6 +2205,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
               <div className="relative"><select value={newData.category} onChange={e => setNewData({...newData, category: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none appearance-none">{filterCategories.filter(c => c !== 'Semua').map(cat => <option key={cat} value={cat}>{cat}</option>)}</select><ChevronRight size={16} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-slate-400 pointer-events-none"/></div>
             </div>
             <div className="col-span-2 sm:col-span-1"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Sumber</label><input type="text" value={newData.source} onChange={e => setNewData({...newData, source: e.target.value})} placeholder="Vendor/Penerbit" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none" /></div>
+            <div className="col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">ISBN <span className="normal-case font-medium text-slate-400">(opsional)</span></label><div className="relative"><ScanLine size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input type="text" inputMode="numeric" value={newData.isbn} onChange={e => setNewData({...newData, isbn: e.target.value})} placeholder="Terisi otomatis setelah scan" className="w-full py-3 pl-10 pr-3 bg-white border border-slate-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-orange-500 outline-none" /></div></div>
           </div>
           <div>
             <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Kelengkapan</label>
@@ -1976,7 +2236,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
     <div className="space-y-5 animation-fade-in">
       <div className="flex justify-between items-start">
         <div><h2 className="text-xl font-bold text-slate-800">Daftar Katalog</h2><p className="text-xs font-medium text-slate-500 mt-1">Tersinkronisasi dengan Database</p></div>
-        <div className="flex gap-2"><button onClick={() => { setNewData({title: '', date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: ''}); setEditingCatalogId(null); setIsAddingData(true); }} className="bg-orange-600 text-white px-3 py-2.5 rounded-xl shadow-sm flex items-center gap-1.5 hover:bg-orange-700 active:scale-95 transition-all"><Plus size={16} strokeWidth={3} /><span className="text-xs font-bold pr-1">Tambah</span></button></div>
+        <div className="flex gap-2"><button onClick={() => { setNewData({title: '', date: new Date().toISOString().split('T')[0], category: 'Buku', source: '', isbn: '', tags: [], webLink: '', fileLink: '', desc: '', fileName: ''}); setEditingCatalogId(null); setIsAddingData(true); }} className="bg-orange-600 text-white px-3 py-2.5 rounded-xl shadow-sm flex items-center gap-1.5 hover:bg-orange-700 active:scale-95 transition-all"><Plus size={16} strokeWidth={3} /><span className="text-xs font-bold pr-1">Tambah</span></button></div>
       </div>
       <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
         <button className="px-3 py-2 rounded-lg text-xs font-bold bg-white text-orange-600 shadow-sm">Daftar Katalog</button>
@@ -2000,7 +2260,7 @@ function KatalogView({ user, catalogItems, catalogLoans, handleAddActivity }) {
                 <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"><button onClick={() => handleEditCatalog(item)} className="p-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100" title="Edit Katalog"><Edit2 size={12}/></button><button onClick={() => handleDeleteCatalog(item.id, item.title)} className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100" title="Hapus Katalog"><Trash2 size={12}/></button></div>
               </div>
               <div><h3 className="font-bold text-slate-800 text-base leading-tight mb-1.5 pr-10">{item.title}</h3><div className="flex items-center gap-3 text-[10px] font-medium text-slate-500"><span className="flex items-center gap-1.5"><User size={12} className="text-slate-400"/> {item.addedBy}</span><span className="flex items-center gap-1.5"><CalendarCheck size={12} className="text-slate-400"/> {item.date}</span></div></div>
-              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100"><p className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">Sumber</p><p className="text-xs font-bold text-slate-700">{item.source}</p></div>
+              <div className={`grid ${item.isbn ? 'grid-cols-2' : 'grid-cols-1'} gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100`}><div><p className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">Sumber</p><p className="text-xs font-bold text-slate-700">{item.source}</p></div>{item.isbn && <div className="border-l border-slate-200 pl-3"><p className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">ISBN</p><p className="text-[10px] font-bold font-mono text-slate-700 break-all">{item.isbn}</p></div>}</div>
               <div className="flex flex-wrap gap-1.5">{item.tags?.map((tag, idx) => ( <span key={idx} className="text-[9px] font-medium border border-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full bg-white">{tag}</span> ))}</div>
               <div className="flex gap-2 w-full pt-1">
                 <button onClick={() => hasWeb && window.open(hasWeb, '_blank')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all ${hasWeb ? 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 active:scale-95 cursor-pointer' : 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed'}`}>{hasWeb ? <><ExternalLink size={14} strokeWidth={2.5}/> Web / Referensi</> : <><AlertCircle size={14} strokeWidth={2.5}/> Web (N/A)</>}</button>
@@ -2204,7 +2464,7 @@ function LoginScreen() {
       }
 
       console.error("Gagal login dengan Google:", error);
-      alert("Login Google gagal. Periksa koneksi internet dan konfigurasi akun, lalu coba kembali.");
+      alert(getFirebaseErrorMessage(error, window.location.hostname));
     }
   };
 
